@@ -26,6 +26,19 @@ export default function CallStatus({ status, onClose, onRefresh }: CallStatusPro
           const response = await fetch(`/api/call-status/${status.executionId}`)
           const data = await response.json()
           
+          // Handle 404 - execution expired or not found (stop polling)
+          if (response.status === 404) {
+            console.log('Execution not found or expired, stopping polling')
+            clearInterval(interval)
+            // If we have webhook data, refresh candidate list
+            if (onRefresh) {
+              onRefresh()
+            }
+            onClose()
+            setLoading(false)
+            return
+          }
+          
           if (data.success && data.details) {
             setCallDetails(data.details)
             
@@ -59,6 +72,7 @@ export default function CallStatus({ status, onClose, onRefresh }: CallStatusPro
           }
         } catch (error) {
           console.error('Error fetching call status:', error)
+          // On error, stop polling after a few retries (don't poll forever on network errors)
         } finally {
           setLoading(false)
         }

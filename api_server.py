@@ -8,6 +8,7 @@ import json
 from datetime import datetime
 from flask import Flask, request, jsonify
 from flask_cors import CORS
+import requests
 from bolna_agent import BolnaAgent
 from update_candidate_status import update_candidate_in_json, parse_call_outcome
 from config import BOLNA_API_KEY, AGENT_ID
@@ -150,14 +151,17 @@ def save_webhook_data(execution_id: str, payload: dict, candidate_id: int = None
                 {}
             ),
             'recipient_phone_number': (
+                payload.get('user_number') or  # Bolna AI webhook format uses "user_number"
                 payload.get('recipient_phone_number') or
                 payload.get('phone_number') or
                 payload.get('phone') or
+                execution_details.get('user_number') or
                 execution_details.get('recipient_phone_number') or
                 telephony_data.get('to_number') or
                 None
             ),
             'agent_phone_number': (
+                payload.get('agent_number') or  # Bolna AI webhook format uses "agent_number"
                 payload.get('agent_phone_number') or
                 telephony_data.get('from_number') or
                 None
@@ -563,19 +567,42 @@ def make_call():
             
             # Check if candidate has specific rescheduling slots assigned
             if 'reschedulingSlots' in candidate and candidate['reschedulingSlots']:
-                # Use candidate-specific rescheduling slots
+                # Use candidate-specific rescheduling slots ONLY
                 slot_ids = candidate['reschedulingSlots']
                 
                 # Create a map of slot IDs to slots for quick lookup
                 slot_map = {slot['id']: slot for slot in candidates_data['availableSlots']}
                 
-                # Get the specific slots assigned to this candidate
-                alternative_slots = [
-                    slot_map[slot_id]['datetime']
-                    for slot_id in slot_ids
-                    if slot_id in slot_map and slot_map[slot_id]['datetime'] != current_datetime
-                ]
-                print(f"📅 Using candidate-specific rescheduling slots for candidate {candidate_id}: {slot_ids}")
+                # Validate and filter: ONLY include slots that:
+                # 1. Exist in the slot_map (valid slot ID)
+                # 2. Are not the current scheduled interview datetime
+                valid_slots = []
+                invalid_slot_ids = []
+                
+                for slot_id in slot_ids:
+                    if slot_id not in slot_map:
+                        invalid_slot_ids.append(slot_id)
+                        print(f"⚠️  Slot ID {slot_id} not found in availableSlots for candidate {candidate_id}")
+                        continue
+                    
+                    slot_datetime = slot_map[slot_id]['datetime']
+                    if slot_datetime == current_datetime:
+                        print(f"⚠️  Skipping slot ID {slot_id} (same as current interview) for candidate {candidate_id}")
+                        continue
+                    
+                    valid_slots.append(slot_datetime)
+                
+                alternative_slots = valid_slots
+                
+                if invalid_slot_ids:
+                    print(f"⚠️  Invalid slot IDs for candidate {candidate_id}: {invalid_slot_ids}")
+                
+                print(f"📅 Using candidate-specific rescheduling slots for candidate {candidate_id}:")
+                print(f"   Requested slot IDs: {slot_ids}")
+                print(f"   Valid slot datetimes: {alternative_slots}")
+                
+                if not alternative_slots:
+                    print(f"❌ WARNING: No valid alternative slots found for candidate {candidate_id} after filtering!")
             else:
                 # Fallback: Use all available slots (excluding current)
                 alternative_slots = [
@@ -583,7 +610,7 @@ def make_call():
                     for slot in candidates_data['availableSlots']
                     if slot['datetime'] != current_datetime
                 ][:3]  # Limit to 3 slots
-                print(f"⚠️  No reschedulingSlots assigned to candidate {candidate_id}, using default slots")
+                print(f"⚠️  No reschedulingSlots assigned to candidate {candidate_id}, using default slots: {alternative_slots}")
 
         # Get caller ID from environment (optional - Twilio can use default)
         caller_id = os.getenv('CALLER_ID', None)
@@ -613,7 +640,8 @@ def make_call():
                 'error_type': 'wallet_balance' if 'wallet' in error_message.lower() or 'balance' in error_message.lower() else 'api_error'
             }), 402 if 'wallet' in error_message.lower() or 'balance' in error_message.lower() else 500
 
-        execution_id = result.get('execution_id')
+        # Bolna AI API may return "id" or "execution_id" in response
+        execution_id = result.get('id') or result.get('execution_id') or result.get('executionId')
         
         # Save execution_id to candidate_id mapping for webhook processing
         if execution_id and candidate_id:
@@ -636,7 +664,35 @@ def make_call():
 
 @app.route('/api/call-status/<execution_id>', methods=['GET'])
 def get_call_status(execution_id):
-    """Get call execution status"""
+    """Get call execution status - checks local webhook data first, then Bolna API"""
+    # First, check if we have webhook data locally (faster and more reliable)
+    try:
+        webhook_data_file = os.path.join('data', 'webhook_data.json')
+        if os.path.exists(webhook_data_file):
+            with open(webhook_data_file, 'r', encoding='utf-8') as f:
+                webhook_data = json.load(f)
+                if execution_id in webhook_data:
+                    stored_data = webhook_data[execution_id]
+                    print(f"✅ Found execution {execution_id} in local webhook data")
+                    return jsonify({
+                        'success': True,
+                        'details': {
+                            'execution_id': execution_id,
+                            'status': stored_data.get('status', 'unknown'),
+                            'transcript': stored_data.get('transcript', ''),
+                            'extracted_data': stored_data.get('extracted_data', {}),
+                            'summary': stored_data.get('summary', ''),
+                            'conversation_duration': stored_data.get('conversation_duration'),
+                            'total_cost': stored_data.get('total_cost'),
+                            'recording_url': stored_data.get('recording_url'),
+                            'telephony_data': stored_data.get('telephony_data', {}),
+                            'from_webhook': True  # Flag to indicate this is from webhook data
+                        }
+                    })
+    except Exception as e:
+        print(f"⚠️  Error reading local webhook data: {e}")
+    
+    # If not found locally, try Bolna API (for active calls)
     if not agent:
         return jsonify({
             'success': False,
@@ -647,9 +703,41 @@ def get_call_status(execution_id):
         details = agent.get_execution_details(execution_id)
         return jsonify({
             'success': True,
-            'details': details
+            'details': details,
+            'from_webhook': False  # Flag to indicate this is from API
         })
+    except requests.exceptions.RequestException as e:
+        # Handle 404 specifically - execution may not exist or may have expired
+        # 404s are expected for expired executions, so we handle them gracefully without error logging
+        if hasattr(e, 'response') and e.response is not None and e.response.status_code == 404:
+            print(f"⚠️  Execution {execution_id} not found or expired (404) - this is expected for expired executions")
+            return jsonify({
+                'success': False,
+                'error': 'Execution not found or expired',
+                'execution_id': execution_id,
+                'status_code': 404,
+                'message': 'This execution ID may have expired or does not exist in Bolna AI system'
+            }), 404
+        # Handle other HTTP errors (non-404)
+        error_msg = str(e)
+        status_code = 500
+        if hasattr(e, 'response') and e.response is not None:
+            status_code = e.response.status_code
+            try:
+                error_data = e.response.json()
+                error_msg = error_data.get('detail', error_data.get('message', str(e)))
+            except:
+                error_msg = e.response.text or str(e)
+        print(f"❌ Error fetching execution details: {error_msg}")
+        return jsonify({
+            'success': False,
+            'error': error_msg,
+            'status_code': status_code
+        }), status_code
     except Exception as e:
+        import traceback
+        print(f"❌ Unexpected error fetching call status: {e}")
+        traceback.print_exc()
         return jsonify({
             'success': False,
             'error': str(e)
@@ -668,9 +756,12 @@ def webhook_handler():
         print(f"   Payload keys: {list(payload.keys()) if isinstance(payload, dict) else 'Not a dict'}")
         
         # Extract execution_id from payload FIRST (needed for storage)
+        # Bolna AI uses "id" as the field name in webhook payloads
         execution_id = (
+            payload.get('id') or  # Bolna AI webhook format uses "id"
             payload.get('execution_id') or 
             payload.get('executionId') or 
+            payload.get('data', {}).get('id') or
             payload.get('data', {}).get('execution_id') or
             payload.get('data', {}).get('executionId')
         )
@@ -691,10 +782,14 @@ def webhook_handler():
         
         if not mapping:
             # Try to find by phone number as fallback
+            # Bolna AI uses "user_number" as the field name
             phone_number = (
+                payload.get('user_number') or  # Bolna AI webhook format uses "user_number"
                 payload.get('recipient_phone_number') or
                 payload.get('phone_number') or
                 payload.get('phone') or
+                payload.get('telephony_data', {}).get('to_number') or
+                payload.get('data', {}).get('user_number') or
                 payload.get('data', {}).get('recipient_phone_number') or
                 None
             )
@@ -731,12 +826,13 @@ def webhook_handler():
         save_webhook_data(execution_id, payload, candidate_id)
         
         # Extract execution details from payload
+        # Bolna AI sends flat payload, so use payload directly if no nested structure
         execution_details = payload.get('data') or payload.get('execution') or payload
         
-        # Extract status
+        # Extract status (Bolna AI uses "status" directly in payload)
         status = (
-            execution_details.get('status') or
             payload.get('status') or
+            execution_details.get('status') or
             'unknown'
         ).lower()
         
@@ -744,16 +840,17 @@ def webhook_handler():
         
         # Extract transcript if available
         transcript = (
+            payload.get('transcript') or
+            payload.get('conversation_transcript') or
             execution_details.get('transcript') or
             execution_details.get('conversation_transcript') or
-            payload.get('transcript') or
             ''
         )
         
         # Extract extracted_data if available
         extracted_data = (
-            execution_details.get('extracted_data') or
             payload.get('extracted_data') or
+            execution_details.get('extracted_data') or
             {}
         )
         
@@ -953,9 +1050,38 @@ def manually_check_call_status(execution_id):
                 'execution_id': execution_id
             })
     
+    except requests.exceptions.RequestException as e:
+        # Handle 404 specifically - execution may not exist or may have expired
+        if hasattr(e, 'response') and e.response is not None and e.response.status_code == 404:
+            print(f"⚠️  Execution {execution_id} not found or expired (404)")
+            return jsonify({
+                'success': False,
+                'error': 'Execution not found or expired',
+                'execution_id': execution_id,
+                'status_code': 404,
+                'message': 'This execution ID may have expired or does not exist in Bolna AI system'
+            }), 404
+        # Handle other HTTP errors
+        error_msg = str(e)
+        status_code = 500
+        if hasattr(e, 'response') and e.response is not None:
+            status_code = e.response.status_code
+            try:
+                error_data = e.response.json()
+                error_msg = error_data.get('detail', error_data.get('message', str(e)))
+            except:
+                error_msg = e.response.text or str(e)
+        import traceback
+        print(f"❌ Error checking call status: {error_msg}")
+        traceback.print_exc()
+        return jsonify({
+            'success': False,
+            'error': error_msg,
+            'status_code': status_code
+        }), status_code
     except Exception as e:
         import traceback
-        print(f"Error checking call status: {e}")
+        print(f"❌ Unexpected error checking call status: {e}")
         traceback.print_exc()
         return jsonify({
             'success': False,
@@ -1142,7 +1268,26 @@ def update_rescheduling_slots(candidate_id):
 
 @app.route('/api/executions', methods=['GET'])
 def get_batch_executions():
-    """Get batch executions from Bolna AI"""
+    """
+    Get All Voice AI Agent Executions API
+    Retrieve all executions performed by a specific agent using Bolna APIs.
+    Supports pagination with page_number and page_size query parameters.
+    
+    Query Parameters:
+        - agent_id (optional): Filter executions for a specific agent
+        - page_number (optional, default: 1): Page number for pagination
+        - page_size (optional, default: 10): Number of results per page
+        - all_pages (optional, default: false): If true, fetch all pages automatically
+    
+    Returns:
+        JSON response with:
+        - success: Boolean indicating if the request was successful
+        - data: List of execution objects
+        - page_number: Current page number
+        - page_size: Number of results per page
+        - total: Total number of executions
+        - has_more: Boolean indicating if there are more pages
+    """
     if not agent:
         return jsonify({
             'success': False,
@@ -1150,20 +1295,91 @@ def get_batch_executions():
         }), 500
     
     try:
-        batch_id = request.args.get('batch_id')
-        limit = request.args.get('limit', 10, type=int)
+        # Get query parameters
+        agent_id = request.args.get('agent_id', None)
+        page_number = request.args.get('page_number', 1, type=int)
+        page_size = request.args.get('page_size', 10, type=int)
+        all_pages = request.args.get('all_pages', 'false').lower() == 'true'
         
-        # Use the list_executions method from BolnaAgent
-        result = agent.list_executions(
-            batch_id=batch_id,
-            limit=limit
-        )
+        # Validate page_size (max typically 100)
+        page_size = min(page_size, 100)
         
+        if all_pages:
+            # Fetch all pages automatically
+            executions = agent.list_all_executions(
+                agent_id=agent_id,
+                page_size=page_size
+            )
+            
+            return jsonify({
+                'success': True,
+                'data': executions,
+                'total': len(executions),
+                'page_number': 1,
+                'page_size': len(executions),
+                'has_more': False,
+                'all_pages': True
+            })
+        else:
+            # Fetch single page
+            result = agent.list_executions(
+                agent_id=agent_id,
+                page_number=page_number,
+                page_size=page_size
+            )
+            
+            if not result:
+                return jsonify({
+                    'success': False,
+                    'error': 'Failed to fetch executions'
+                }), 500
+            
+            # Handle different response formats
+            if isinstance(result, dict):
+                return jsonify({
+                    'success': True,
+                    'data': result.get('data', []),
+                    'page_number': result.get('page_number', page_number),
+                    'page_size': result.get('page_size', page_size),
+                    'total': result.get('total', 0),
+                    'has_more': result.get('has_more', False)
+                })
+            elif isinstance(result, list):
+                return jsonify({
+                    'success': True,
+                    'data': result,
+                    'total': len(result),
+                    'page_number': 1,
+                    'page_size': len(result),
+                    'has_more': False
+                })
+            else:
+                return jsonify({
+                    'success': True,
+                    'data': [],
+                    'total': 0,
+                    'page_number': page_number,
+                    'page_size': page_size,
+                    'has_more': False
+                })
+    except requests.exceptions.RequestException as e:
+        # Handle HTTP errors (404, 500, etc.)
+        status_code = 500
+        error_msg = str(e)
+        if hasattr(e, 'response') and e.response is not None:
+            status_code = e.response.status_code
+            try:
+                error_data = e.response.json()
+                error_msg = error_data.get('detail', error_data.get('message', str(e)))
+            except:
+                error_msg = e.response.text or str(e)
+        
+        print(f"❌ Error fetching executions: {error_msg}")
         return jsonify({
-            'success': True,
-            'executions': result.get('executions', []),
-            'total': result.get('total', 0)
-        })
+            'success': False,
+            'error': error_msg,
+            'status_code': status_code
+        }), status_code
     except Exception as e:
         import traceback
         print(f"Error fetching batch executions: {e}")

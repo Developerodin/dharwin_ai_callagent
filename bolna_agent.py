@@ -5,7 +5,7 @@ Creates and manages the Ava interview scheduling agent
 
 import requests
 import json
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 from config import (
     BOLNA_API_BASE,
     BOLNA_API_KEY,
@@ -317,7 +317,12 @@ class BolnaAgent:
             response.raise_for_status()
             result = response.json()
             print(f"✅ Call initiated successfully!")
-            print(f"Execution ID: {result.get('execution_id')}")
+            # Bolna AI API returns "id" or "execution_id" in response
+            execution_id = result.get('id') or result.get('execution_id') or result.get('executionId')
+            if execution_id:
+                print(f"Execution ID: {execution_id}")
+            else:
+                print(f"Response: {json.dumps(result, indent=2)}")
             return result
         except ValueError as e:
             # Re-raise ValueError (wallet balance or custom errors)
@@ -340,7 +345,8 @@ class BolnaAgent:
     
     def get_execution_details(self, execution_id: str) -> Dict[str, Any]:
         """
-        Get details of a call execution
+        Get details of a call execution using Bolna AI Execution API
+        Endpoint: GET /execution/{execution_id} or /executions/{execution_id}
         
         Args:
             execution_id: The execution ID from the call response
@@ -350,8 +356,9 @@ class BolnaAgent:
             - status, transcript, cost_breakdown
             - telephony_data (duration, recording_url, etc.)
             - extracted_data (if any data was extracted)
-            - context_details
+            - context_details, latency_data, usage_breakdown
         """
+        # Try /execution/{id} first, then /executions/{id} if needed
         url = f"{self.base_url}/execution/{execution_id}"
         
         try:
@@ -369,10 +376,44 @@ class BolnaAgent:
                     return data[0]
                 return data
             return result
-        except requests.exceptions.RequestException as e:
+        except requests.exceptions.HTTPError as e:
+            # If 404, try alternative endpoint format (/executions instead of /execution)
+            if e.response and e.response.status_code == 404:
+                try:
+                    alt_url = f"{self.base_url}/executions/{execution_id}"
+                    alt_response = requests.get(alt_url, headers=self.headers)
+                    alt_response.raise_for_status()
+                    result = alt_response.json()
+                    print(f"✅ Found execution using /executions endpoint")
+                    if isinstance(result, list) and len(result) > 0:
+                        return result[0]
+                    elif isinstance(result, dict) and 'data' in result:
+                        data = result['data']
+                        if isinstance(data, list) and len(data) > 0:
+                            return data[0]
+                        return data
+                    return result
+                except requests.exceptions.HTTPError as alt_e:
+                    # If alternative also fails with 404, re-raise original 404 exception
+                    # (404 is expected for expired executions - don't log as error)
+                    if alt_e.response and alt_e.response.status_code == 404:
+                        raise e  # Re-raise original 404
+                    # If alternative fails with different error, raise that
+                    raise alt_e
+                except:
+                    # For any other exception from alternative endpoint, re-raise original 404
+                    raise e
+            # For non-404 HTTP errors, log as actual error
             print(f"❌ Error fetching execution details: {e}")
             if hasattr(e, 'response') and e.response is not None:
                 print(f"Response: {e.response.text}")
+            raise
+        except requests.exceptions.RequestException as e:
+            # Only log non-404 errors as actual errors
+            if not (hasattr(e, 'response') and e.response is not None and e.response.status_code == 404):
+                print(f"❌ Error fetching execution details: {e}")
+                if hasattr(e, 'response') and e.response is not None:
+                    print(f"Response: {e.response.text}")
             raise
     
     def get_transcript(self, execution_id: str) -> str:
@@ -406,13 +447,19 @@ class BolnaAgent:
     
     def get_execution_logs(self, execution_id: str) -> Dict[str, Any]:
         """
-        Get logs for a call execution
+        Get raw logs for a call execution using Bolna AI Execution Raw Logs API
+        Endpoint: GET /execution/{execution_id}/logs
+        Includes: prompts, requests & responses by the models, component data
         
         Args:
             execution_id: The execution ID from the call response
         
         Returns:
-            Dictionary containing execution logs with component data
+            Dictionary containing execution logs with component data including:
+            - prompts used by the agent
+            - LLM requests and responses
+            - transcriber and synthesizer logs
+            - component-level execution data
         """
         url = f"{self.base_url}/execution/{execution_id}/logs"
         
@@ -420,6 +467,21 @@ class BolnaAgent:
             response = requests.get(url, headers=self.headers)
             response.raise_for_status()
             return response.json()
+        except requests.exceptions.HTTPError as e:
+            # If 404, try alternative endpoint format
+            if e.response and e.response.status_code == 404:
+                try:
+                    alt_url = f"{self.base_url}/executions/{execution_id}/logs"
+                    alt_response = requests.get(alt_url, headers=self.headers)
+                    alt_response.raise_for_status()
+                    print(f"✅ Found execution logs using /executions endpoint")
+                    return alt_response.json()
+                except:
+                    pass
+            print(f"❌ Error fetching execution logs: {e}")
+            if hasattr(e, 'response') and e.response is not None:
+                print(f"Response: {e.response.text}")
+            raise
         except requests.exceptions.RequestException as e:
             print(f"❌ Error fetching execution logs: {e}")
             if hasattr(e, 'response') and e.response is not None:
@@ -433,17 +495,43 @@ class BolnaAgent:
         page_size: int = 10
     ) -> Dict[str, Any]:
         """
-        List call executions with pagination
+        Get All Voice AI Agent Executions API
+        Retrieve all executions performed by a specific agent using Bolna APIs.
+        This endpoint provides a comprehensive history of the agent's calls and conversations.
+        
+        Supports pagination using page_number and page_size query parameters.
+        Use 'has_more' in the response to determine if you should fetch the next page.
         
         Args:
-            agent_id: Optional agent ID to filter executions
-            page_number: Page number (default: 1)
-            page_size: Number of results per page (default: 10)
+            agent_id: Optional agent ID to filter executions for a specific agent.
+                     If not provided, uses self.agent_id (current agent).
+            page_number: Page number for pagination (default: 1)
+            page_size: Number of results per page (default: 10, max typically 100)
         
         Returns:
             Dictionary containing paginated execution list with:
-            - data: List of executions
-            - page_number, page_size, total, has_more
+            - data: List of execution objects (each with status, transcript, telephony_data, etc.)
+            - page_number: Current page number
+            - page_size: Number of results per page
+            - total: Total number of executions
+            - has_more: Boolean indicating if there are more pages to fetch
+        
+        Example response:
+            {
+                "data": [
+                    {
+                        "id": "exec_123...",
+                        "status": "completed",
+                        "transcript": "...",
+                        "telephony_data": {...},
+                        ...
+                    }
+                ],
+                "page_number": 1,
+                "page_size": 10,
+                "total": 45,
+                "has_more": True
+            }
         """
         url = f"{self.base_url}/execution"
         params = {
@@ -451,20 +539,101 @@ class BolnaAgent:
             "page_size": page_size
         }
         
-        if agent_id:
-            params["agent_id"] = agent_id
-        elif self.agent_id:
-            params["agent_id"] = self.agent_id
+        # Use provided agent_id, or fallback to instance agent_id
+        target_agent_id = agent_id or self.agent_id
+        if target_agent_id:
+            params["agent_id"] = target_agent_id
         
         try:
             response = requests.get(url, headers=self.headers, params=params)
             response.raise_for_status()
-            return response.json()
+            result = response.json()
+            
+            # Log pagination info if available
+            if isinstance(result, dict):
+                has_more = result.get('has_more', False)
+                total = result.get('total', 0)
+                page_num = result.get('page_number', page_number)
+                page_sz = result.get('page_size', page_size)
+                data_count = len(result.get('data', []))
+                
+                print(f"📋 Executions page {page_num}: {data_count} results (total: {total}, has_more: {has_more})")
+            
+            return result
+        except requests.exceptions.HTTPError as e:
+            # Try alternative endpoint format if needed
+            if e.response and e.response.status_code == 404:
+                try:
+                    alt_url = f"{self.base_url}/executions"
+                    alt_response = requests.get(alt_url, headers=self.headers, params=params)
+                    alt_response.raise_for_status()
+                    print(f"✅ Found executions using /executions endpoint")
+                    return alt_response.json()
+                except:
+                    pass
+            print(f"❌ Error listing executions: {e}")
+            if hasattr(e, 'response') and e.response is not None:
+                print(f"Response: {e.response.text}")
+            raise
         except requests.exceptions.RequestException as e:
             print(f"❌ Error listing executions: {e}")
             if hasattr(e, 'response') and e.response is not None:
                 print(f"Response: {e.response.text}")
             raise
+    
+    def list_all_executions(
+        self,
+        agent_id: Optional[str] = None,
+        page_size: int = 50,
+        max_pages: Optional[int] = None
+    ) -> List[Dict[str, Any]]:
+        """
+        Fetch all executions for an agent across all pages automatically.
+        This is a convenience method that uses list_executions() with pagination.
+        
+        Args:
+            agent_id: Optional agent ID to filter executions
+            page_size: Number of results per page (default: 50, max typically 100)
+            max_pages: Maximum number of pages to fetch (None = fetch all)
+        
+        Returns:
+            List of all execution objects across all pages
+        """
+        all_executions = []
+        page = 1
+        
+        while True:
+            if max_pages and page > max_pages:
+                break
+            
+            result = self.list_executions(
+                agent_id=agent_id,
+                page_number=page,
+                page_size=page_size
+            )
+            
+            if not result:
+                break
+            
+            # Handle different response formats
+            if isinstance(result, dict):
+                executions = result.get('data', [])
+                has_more = result.get('has_more', False)
+                
+                all_executions.extend(executions)
+                
+                if not has_more:
+                    break
+            elif isinstance(result, list):
+                all_executions.extend(result)
+                break
+            else:
+                break
+            
+            page += 1
+        
+        print(f"✅ Fetched {len(all_executions)} total executions across {page} page(s)")
+        return all_executions
     
     def get_agent(self, agent_id: Optional[str] = None) -> Dict[str, Any]:
         """
