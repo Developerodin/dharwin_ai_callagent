@@ -1,0 +1,135 @@
+{
+  "candidates": [
+    {
+      "id": 1,
+      "name": "Prakhar Sharma",
+      "phone": "+918755887760",
+      "email": "prakhar.sharma@example.com",
+      "position": "Software Engineer",
+      "status": "pending",
+      "scheduledInterview": {
+        "day": "Friday",
+        "date": "Friday, the 12th of December",
+        "time": "11:00 A.M.",
+        "datetime": "Friday, the 12th of December at 11:00 A.M."
+      },
+      "reschedulingSlots": [1, 3, 5],
+      "applicationDate": "2024-11-25"
+    },
+    {
+      "id": 2,
+      "name": "Ronak Vaya",
+      "phone": "+919694998693",
+      "email": "Ronak.vaya@example.com",
+      "position": "Frontend Developer",
+      "status": "pending",
+      "scheduledInterview": {
+        "date": "Monday, the 15th of December",
+        "time": "2:00 P.M.",
+        "day": "Monday",
+        "datetime": "Monday, the 15th of December at 2:00 P.M."
+      },
+      "reschedulingSlots": [2, 4, 6],
+      "applicationDate": "2024-11-24"
+    },
+    {
+      "id": 3,
+      "name": "Priya Patel",
+      "phone": "+919123456789",
+      "email": "priya.patel@example.com",
+      "position": "Backend Developer",
+      "status": "pending",
+      "scheduledInterview": {
+        "date": "Tuesday, the 16th of December",
+        "time": "11:00 A.M.",
+        "day": "Tuesday",
+        "datetime": "Tuesday, the 16th of December at 11:00 A.M."
+      },
+      "reschedulingSlots": [3, 6, 7],
+      "applicationDate": "2024-11-23"
+    },
+    {
+      "id": 4,
+      "name": "Amit Kumar",
+      "phone": "+919988776655",
+      "email": "amit.kumar@example.com",
+      "position": "Full Stack Developer",
+      "status": "pending",
+      "scheduledInterview": {
+        "date": "Wednesday, the 17th of December",
+        "time": "3:00 P.M.",
+        "day": "Wednesday",
+        "datetime": "Wednesday, the 17th of December at 3:00 P.M."
+      },
+      "reschedulingSlots": [4, 1, 5],
+      "applicationDate": "2024-11-22"
+    },
+    {
+      "id": 5,
+      "name": "Sneha Singh",
+      "phone": "+919765432109",
+      "email": "sneha.singh@example.com",
+      "position": "UI/UX Designer",
+      "status": "pending",
+      "scheduledInterview": {
+        "date": "Thursday, the 18th of December",
+        "time": "10:30 A.M.",
+        "day": "Thursday",
+        "datetime": "Thursday, the 18th of December at 10:30 A.M."
+      },
+      "reschedulingSlots": [5, 2, 7],
+      "applicationDate": "2024-11-21"
+    }
+  ],
+  "availableSlots": [
+    {
+      "id": 1,
+      "date": "Monday, the 15th of December",
+      "time": "2:00 P.M.",
+      "day": "Monday",
+      "datetime": "Monday, the 15th of December at 2:00 P.M."
+    },
+    {
+      "id": 2,
+      "date": "Tuesday, the 16th of December",
+      "time": "11:00 A.M.",
+      "day": "Tuesday",
+      "datetime": "Tuesday, the 16th of December at 11:00 A.M."
+    },
+    {
+      "id": 3,
+      "date": "Wednesday, the 17th of December",
+      "time": "3:00 P.M.",
+      "day": "Wednesday",
+      "datetime": "Wednesday, the 17th of December at 3:00 P.M."
+    },
+    {
+      "id": 4,
+      "date": "Thursday, the 18th of December",
+      "time": "10:30 A.M.",
+      "day": "Thursday",
+      "datetime": "Thursday, the 18th of December at 10:30 A.M."
+    },
+    {
+      "id": 5,
+      "date": "Friday, the 19th of December",
+      "time": "1:00 P.M.",
+      "day": "Friday",
+      "datetime": "Friday, the 19th of December at 1:00 P.M."
+    },
+    {
+      "id": 6,
+      "date": "Monday, the 22nd of December",
+      "time": "9:00 A.M.",
+      "day": "Monday",
+      "datetime": "Monday, the 22nd of December at 9:00 A.M."
+    },
+    {
+      "id": 7,
+      "date": "Tuesday, the 23rd of December",
+      "time": "2:30 P.M.",
+      "day": "Tuesday",
+      "datetime": "Tuesday, the 23rd of December at 2:30 P.M."
+    }
+  ]
+}
