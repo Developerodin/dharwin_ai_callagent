@@ -519,15 +519,22 @@ def reset_candidate_statuses():
         with open(json_path, 'r', encoding='utf-8') as f:
             data = json.load(f)
         
-        # Reset ALL statuses to 'pending' (not just 'calling')
+        # Reset ALL statuses to 'pending' and restore original interviews if rescheduled
         reset_count = 0
         changes = []
         for candidate in data['candidates']:
             old_status = candidate.get('status', 'unknown')
             if old_status != 'pending':
+                # If candidate was rescheduled, restore original interview
+                if 'originalInterview' in candidate and candidate['originalInterview']:
+                    candidate['scheduledInterview'] = candidate['originalInterview'].copy()
+                    del candidate['originalInterview']
+                    changes.append(f"{candidate.get('name', 'Unknown')}: {old_status} → pending (original interview restored)")
+                else:
+                    changes.append(f"{candidate.get('name', 'Unknown')}: {old_status} → pending")
+                
                 candidate['status'] = 'pending'
                 reset_count += 1
-                changes.append(f"{candidate.get('name', 'Unknown')}: {old_status} → pending")
                 print(f"  ✅ Reset candidate {candidate['id']} ({candidate.get('name', 'Unknown')}): {old_status} → pending")
         
         # Write back to file
@@ -1133,10 +1140,14 @@ def manually_check_call_status(execution_id):
 
 @app.route('/api/candidate/<candidate_id>/reset', methods=['POST'])
 def reset_candidate_status(candidate_id):
-    """Reset a candidate's status to 'pending' ONLY - no other changes"""
+    """Reset a candidate's status to 'pending' and restore original interview if rescheduled"""
     try:
         candidate_id_int = int(candidate_id)
-        json_path = 'data/candidates.json'
+        # Use absolute path
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        json_path = os.path.join(base_dir, 'data', 'candidates.json')
+        
+        print(f"📝 Reset candidate {candidate_id} - Using path: {json_path}")
         
         with open(json_path, 'r', encoding='utf-8') as f:
             data = json.load(f)
@@ -1149,16 +1160,38 @@ def reset_candidate_status(candidate_id):
             }), 404
         
         old_status = candidate.get('status', 'unknown')
-        # ONLY change status to pending - preserve everything else
+        had_original = 'originalInterview' in candidate and candidate['originalInterview']
+        
+        # If candidate was rescheduled, restore original interview
+        if had_original:
+            print(f"🔄 Restoring original interview for candidate {candidate_id}")
+            original_interview = candidate['originalInterview'].copy()
+            candidate['scheduledInterview'] = original_interview
+            # Remove the originalInterview field since we're resetting
+            del candidate['originalInterview']
+            print(f"   Restored interview: {candidate['scheduledInterview']['datetime']}")
+        
+        # Set status to pending
         candidate['status'] = 'pending'
         
-        with open(json_path, 'w', encoding='utf-8') as f:
-            json.dump(data, f, indent=2, ensure_ascii=False)
+        # Write back to file
+        try:
+            with open(json_path, 'w', encoding='utf-8') as f:
+                json.dump(data, f, indent=2, ensure_ascii=False)
+            message = f'Candidate {candidate_id} status reset to pending'
+            if had_original:
+                message += ' and original interview restored'
+            print(f"✅ {message}")
+        except Exception as write_error:
+            print(f"❌ Error writing file: {write_error}")
+            return jsonify({
+                'success': False,
+                'error': f'Error writing file: {str(write_error)}'
+            }), 500
         
-        print(f"✅ Reset candidate {candidate_id} status: {old_status} → pending")
         return jsonify({
             'success': True,
-            'message': f'Candidate {candidate_id} status reset to pending'
+            'message': message
         })
     except Exception as e:
         import traceback
