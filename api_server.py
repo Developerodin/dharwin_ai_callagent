@@ -329,7 +329,10 @@ def save_transcript_separately(execution_id: str, transcript: str, candidate_id:
         candidate_info = {}
         if candidate_id:
             try:
-                with open('data/candidates.json', 'r', encoding='utf-8') as f:
+                # Use absolute path
+                base_dir = os.path.dirname(os.path.abspath(__file__))
+                json_path = os.path.join(base_dir, 'data', 'candidates.json')
+                with open(json_path, 'r', encoding='utf-8') as f:
                     candidates_data = json.load(f)
                     candidate = next(
                         (c for c in candidates_data.get('candidates', []) if c.get('id') == candidate_id),
@@ -1436,7 +1439,10 @@ def webhook_handler():
             
             if phone_number:
                 try:
-                    with open('data/candidates.json', 'r', encoding='utf-8') as f:
+                    # Use absolute path
+                    base_dir = os.path.dirname(os.path.abspath(__file__))
+                    json_path = os.path.join(base_dir, 'data', 'candidates.json')
+                    with open(json_path, 'r', encoding='utf-8') as f:
                         candidates_data = json.load(f)
                     candidate = next(
                         (c for c in candidates_data['candidates'] if c['phone'] == phone_number),
@@ -1797,7 +1803,9 @@ def delete_candidate(candidate_id):
     """Delete a candidate from the system"""
     try:
         candidate_id_int = int(candidate_id)
-        json_path = 'data/candidates.json'
+        # Use absolute path
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        json_path = os.path.join(base_dir, 'data', 'candidates.json')
         
         with open(json_path, 'r', encoding='utf-8') as f:
             data = json.load(f)
@@ -1834,7 +1842,10 @@ def delete_candidate(candidate_id):
 def add_candidate():
     """Add a new candidate"""
     try:
-        json_path = 'data/candidates.json'
+        # Use absolute path
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        json_path = os.path.join(base_dir, 'data', 'candidates.json')
+        
         with open(json_path, 'r', encoding='utf-8') as f:
             data = json.load(f)
         
