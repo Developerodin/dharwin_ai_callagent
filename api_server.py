@@ -5,6 +5,7 @@ Bridges Next.js frontend with Bolna AI Python backend
 
 import os
 import json
+import logging
 from datetime import datetime
 from flask import Flask, request, jsonify, Response
 from flask_cors import CORS
@@ -17,6 +18,27 @@ from config import BOLNA_API_KEY, AGENT_ID
 # Initialize Flask app
 app = Flask(__name__)
 CORS(app)  # Enable CORS for all routes
+
+# Set up logging to file
+log_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'logs')
+if not os.path.exists(log_dir):
+    os.makedirs(log_dir)
+
+log_file = os.path.join(log_dir, 'flask.log')
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler(log_file, encoding='utf-8'),
+        logging.StreamHandler()  # Also log to console
+    ]
+)
+
+# Create logger
+logger = logging.getLogger(__name__)
+app.logger.setLevel(logging.INFO)
 
 # Initialize Bolna Agent
 agent = None
@@ -485,51 +507,75 @@ def show_logs():
         lines = request.args.get('lines', 100, type=int)
         lines = min(lines, 1000)  # Limit to 1000 lines max
         
-        # Try to get logs from systemd journal
-        try:
-            # Try both service names (bolna-flask and bolna-backend)
-            service_names = ['bolna-backend', 'bolna-flask']
-            result = None
-            used_service = None
-            
-            for service_name in service_names:
-                try:
-                    # Test if service exists
-                    test_result = subprocess.run(
-                        ['journalctl', '-u', service_name, '-n', '1', '--no-pager'],
-                        capture_output=True,
-                        text=True,
-                        timeout=2
-                    )
-                    if test_result.returncode == 0:
-                        # Service exists, get logs
-                        result = subprocess.run(
-                            ['journalctl', '-u', service_name, '-n', str(lines), '--no-pager', '--no-hostname'],
+        logs = ""
+        log_source = ""
+        
+        # First, try to read from Flask log file
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        log_file = os.path.join(base_dir, 'logs', 'flask.log')
+        
+        if os.path.exists(log_file):
+            try:
+                # Read last N lines from file
+                with open(log_file, 'r', encoding='utf-8') as f:
+                    all_lines = f.readlines()
+                    recent_lines = all_lines[-lines:] if len(all_lines) > lines else all_lines
+                    logs = ''.join(recent_lines)
+                    log_source = f"Flask log file: {log_file}"
+            except Exception as e:
+                logs = f"⚠️ Error reading log file: {str(e)}\n\n"
+        
+        # If log file is empty or doesn't exist, try systemd journal as fallback
+        if not logs or len(logs.strip()) == 0:
+            try:
+                # Try both service names (bolna-backend and bolna-flask)
+                service_names = ['bolna-backend', 'bolna-flask']
+                result = None
+                used_service = None
+                
+                for service_name in service_names:
+                    try:
+                        # Test if service exists
+                        test_result = subprocess.run(
+                            ['journalctl', '-u', service_name, '-n', '1', '--no-pager'],
                             capture_output=True,
                             text=True,
-                            timeout=5
+                            timeout=2
                         )
-                        used_service = service_name
-                        break
-                except FileNotFoundError:
-                    logs = "⚠️ journalctl command not found. Cannot retrieve systemd logs.\n\n"
-                    logs += f"Try accessing logs manually: sudo journalctl -u bolna-backend -f"
-                    break
-                except (subprocess.TimeoutExpired, PermissionError) as e:
-                    continue
-            
-            if result and result.returncode == 0 and result.stdout:
-                logs = f"📋 Logs from service: {used_service}\n"
-                logs += "=" * 80 + "\n\n"
-                logs += result.stdout
-            elif not logs:
-                logs = "⚠️ Could not retrieve logs from systemd.\n\n"
-                logs += f"Tried services: {', '.join(service_names)}\n"
-                logs += f"Try accessing logs manually: sudo journalctl -u bolna-backend -f"
+                        if test_result.returncode == 0:
+                            # Service exists, get logs
+                            result = subprocess.run(
+                                ['journalctl', '-u', service_name, '-n', str(lines), '--no-pager', '--no-hostname'],
+                                capture_output=True,
+                                text=True,
+                                timeout=5
+                            )
+                            used_service = service_name
+                            break
+                    except FileNotFoundError:
+                        # journalctl not found, skip
+                        continue
+                    except (subprocess.TimeoutExpired, PermissionError) as e:
+                        continue
                 
-        except Exception as e:
-            logs = f"⚠️ Error retrieving systemd logs: {str(e)}\n\n"
-            logs += f"Try accessing logs manually: sudo journalctl -u bolna-backend -f"
+                if result and result.returncode == 0 and result.stdout:
+                    logs = result.stdout
+                    log_source = f"systemd service: {used_service}"
+                else:
+                    logs = "⚠️ No logs available.\n\n"
+                    logs += "Log file not found and systemd journal not accessible.\n"
+                    logs += f"Log file location: {log_file}\n"
+                    logs += f"Try accessing logs manually:\n"
+                    logs += f"  - Log file: tail -f {log_file}\n"
+                    logs += f"  - Systemd: sudo journalctl -u bolna-backend -f"
+            except Exception as e:
+                logs = f"⚠️ Error retrieving logs: {str(e)}\n\n"
+                logs += f"Log file location: {log_file}\n"
+                logs += f"Try: tail -f {log_file}"
+        
+        # Add log source info at the top
+        if log_source:
+            logs = f"📋 Logs from {log_source}\n" + "=" * 80 + "\n\n" + logs
         
         # Return as HTML for easy viewing in browser
         html_content = f"""
