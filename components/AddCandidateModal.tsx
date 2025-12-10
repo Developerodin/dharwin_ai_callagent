@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { getFlaskBackendUrl } from '@/lib/config'
 
 interface AvailableSlot {
   id: number
@@ -50,7 +51,8 @@ export default function AddCandidateModal({ isOpen, onClose, onSuccess, availabl
     e.preventDefault()
     
     try {
-      const response = await fetch('http://localhost:5000/api/candidate/add', {
+      const backendUrl = getFlaskBackendUrl()
+      const response = await fetch(`${backendUrl}/api/candidate/add`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

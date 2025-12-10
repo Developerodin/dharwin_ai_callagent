@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import CandidateList from '@/components/CandidateList'
 import CallStatus from '@/components/CallStatus'
 import AddCandidateModal from '@/components/AddCandidateModal'
+import { getFlaskBackendUrl } from '@/lib/config'
 
 export default function Home() {
   const [candidates, setCandidates] = useState<any[]>([])
@@ -48,7 +49,8 @@ export default function Home() {
 
   const resetStatuses = async () => {
     try {
-      const response = await fetch('http://localhost:5000/api/reset-statuses', {
+      const backendUrl = getFlaskBackendUrl()
+      const response = await fetch(`${backendUrl}/api/reset-statuses`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

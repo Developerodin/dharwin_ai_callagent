@@ -51,6 +51,28 @@ elif ! grep -q "host='0.0.0.0'" api_server.py; then
     echo "⚠️  Could not find Flask run configuration. Please manually update api_server.py"
 fi
 
+# Get EC2 public IP for Flask backend URL
+EC2_PUBLIC_IP=$(curl -s http://169.254.169.254/latest/meta-data/public-ipv4 2>/dev/null || echo "localhost")
+FLASK_BACKEND_URL="http://${EC2_PUBLIC_IP}:5000"
+
+echo ""
+echo "📝 Setting Flask backend URL for Next.js: ${FLASK_BACKEND_URL}"
+echo ""
+
+# Create/update .env.local for Next.js
+if [ -f .env.local ]; then
+    # Update existing NEXT_PUBLIC_FLASK_BACKEND_URL or add it
+    if grep -q "NEXT_PUBLIC_FLASK_BACKEND_URL" .env.local; then
+        sed -i "s|NEXT_PUBLIC_FLASK_BACKEND_URL=.*|NEXT_PUBLIC_FLASK_BACKEND_URL=${FLASK_BACKEND_URL}|" .env.local
+    else
+        echo "NEXT_PUBLIC_FLASK_BACKEND_URL=${FLASK_BACKEND_URL}" >> .env.local
+    fi
+else
+    echo "NEXT_PUBLIC_FLASK_BACKEND_URL=${FLASK_BACKEND_URL}" > .env.local
+fi
+
+echo "✅ Next.js environment configured"
+
 # Create systemd service files
 echo "⚙️  Creating systemd service files..."
 
@@ -87,6 +109,7 @@ User=$SERVICE_USER
 WorkingDirectory=$PROJECT_DIR
 Environment="PORT=3000"
 Environment="NODE_ENV=production"
+Environment="NEXT_PUBLIC_FLASK_BACKEND_URL=${FLASK_BACKEND_URL}"
 ExecStart=/usr/bin/npm start
 Restart=always
 RestartSec=10

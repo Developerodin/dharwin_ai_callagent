@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { getFlaskBackendUrl } from '@/lib/config'
 
 interface AvailableSlot {
   id: number
@@ -49,7 +50,8 @@ export default function ManageReschedulingSlotsModal({
   const handleSave = async () => {
     setSaving(true)
     try {
-      const response = await fetch(`http://localhost:5000/api/candidate/${candidateId}/rescheduling-slots`, {
+      const backendUrl = getFlaskBackendUrl()
+      const response = await fetch(`${backendUrl}/api/candidate/${candidateId}/rescheduling-slots`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',

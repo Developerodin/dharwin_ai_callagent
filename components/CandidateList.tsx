@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import CandidateCard from './CandidateCard'
 import ManageReschedulingSlotsModal from './ManageReschedulingSlotsModal'
+import { getFlaskBackendUrl } from '@/lib/config'
 
 interface Candidate {
   id: number
@@ -91,7 +92,8 @@ export default function CandidateList({
     }
 
     try {
-      const response = await fetch(`http://localhost:5000/api/candidate/${candidateId}/reset`, {
+      const backendUrl = getFlaskBackendUrl()
+      const response = await fetch(`${backendUrl}/api/candidate/${candidateId}/reset`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -118,7 +120,8 @@ export default function CandidateList({
     }
 
     try {
-      const response = await fetch(`http://localhost:5000/api/candidate/${candidateId}`, {
+      const backendUrl = getFlaskBackendUrl()
+      const response = await fetch(`${backendUrl}/api/candidate/${candidateId}`, {
         method: 'DELETE',
         headers: {
           'Content-Type': 'application/json',

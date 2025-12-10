@@ -66,6 +66,8 @@ AGENT_ID=your_agent_id_here  # Optional, will be created if not provided
 
 Save and exit (Ctrl+X, then Y, then Enter).
 
+**Note:** The deployment script will automatically create `.env.local` for Next.js with `NEXT_PUBLIC_FLASK_BACKEND_URL` pointing to your EC2 public IP. This allows the frontend to communicate with the Flask backend.
+
 ## Step 5: Configure ngrok
 
 ### Option A: Using ngrok Free (Reserved Domain - Recommended for Production)
