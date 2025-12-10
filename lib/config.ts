@@ -68,5 +68,3 @@ export const getFlaskBackendUrl = (): string => {
   return getFlaskBackendUrlServer()
 }
 
-export const FLASK_BACKEND_URL = getFlaskBackendUrl()
-
