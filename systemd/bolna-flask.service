@@ -1,0 +1,18 @@
+[Unit]
+Description=Bolna Flask API Server
+After=network.target
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/home/ubuntu/dharwin_ai_callagent
+Environment="PATH=/home/ubuntu/dharwin_ai_callagent/venv/bin"
+ExecStart=/home/ubuntu/dharwin_ai_callagent/venv/bin/python api_server.py
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
+

@@ -1,0 +1,19 @@
+[Unit]
+Description=Bolna Next.js Frontend
+After=network.target bolna-flask.service
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/home/ubuntu/dharwin_ai_callagent
+Environment="PORT=3000"
+Environment="NODE_ENV=production"
+ExecStart=/usr/bin/npm start
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
+

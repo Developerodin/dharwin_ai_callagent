@@ -1,0 +1,20 @@
+[Unit]
+Description=Bolna ngrok Tunnel (Reserved Domain)
+After=network.target bolna-flask.service
+Requires=bolna-flask.service
+
+[Service]
+Type=simple
+User=ubuntu
+ExecStart=/usr/bin/ngrok http 5000 --domain=YOUR_DOMAIN.ngrok-free.app
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
+
+# NOTE: Replace YOUR_DOMAIN.ngrok-free.app with your actual reserved ngrok domain
+# This requires a paid ngrok plan
+

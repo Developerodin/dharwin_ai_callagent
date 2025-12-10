@@ -1390,8 +1390,15 @@ def get_batch_executions():
         }), 500
 
 if __name__ == '__main__':
+    import os
+    # Check if running in production (EC2)
+    debug_mode = os.getenv('FLASK_DEBUG', 'False').lower() == 'true'
+    host = os.getenv('FLASK_HOST', '0.0.0.0' if not debug_mode else 'localhost')
+    port = int(os.getenv('FLASK_PORT', 5000))
+    
     print("🚀 Starting Flask API Server...")
-    print("📡 Server will run on http://localhost:5000")
-    print("📝 Webhook endpoint: http://localhost:5000/api/webhook")
-    app.run(debug=True, port=5000)
+    print(f"📡 Server will run on http://{host}:{port}")
+    print(f"📝 Webhook endpoint: http://{host}:{port}/api/webhook")
+    print(f"🔧 Debug mode: {debug_mode}")
+    app.run(debug=debug_mode, host=host, port=port)
 
