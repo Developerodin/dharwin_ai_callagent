@@ -487,22 +487,49 @@ def show_logs():
         
         # Try to get logs from systemd journal
         try:
-            # Run journalctl to get Flask service logs
-            result = subprocess.run(
-                ['journalctl', '-u', 'bolna-flask', '-n', str(lines), '--no-pager', '--no-hostname'],
-                capture_output=True,
-                text=True,
-                timeout=5
-            )
+            # Try both service names (bolna-flask and bolna-backend)
+            service_names = ['bolna-backend', 'bolna-flask']
+            result = None
+            used_service = None
             
-            if result.returncode == 0 and result.stdout:
-                logs = result.stdout
-            else:
-                logs = "⚠️ Could not retrieve logs from systemd. Service may not be running as a systemd service.\n\n"
-                logs += "Recent application activity will be shown here once available."
-        except (subprocess.TimeoutExpired, FileNotFoundError, PermissionError) as e:
-            logs = f"⚠️ Could not retrieve systemd logs: {str(e)}\n\n"
-            logs += "Try accessing logs via: sudo journalctl -u bolna-flask -f"
+            for service_name in service_names:
+                try:
+                    # Test if service exists
+                    test_result = subprocess.run(
+                        ['journalctl', '-u', service_name, '-n', '1', '--no-pager'],
+                        capture_output=True,
+                        text=True,
+                        timeout=2
+                    )
+                    if test_result.returncode == 0:
+                        # Service exists, get logs
+                        result = subprocess.run(
+                            ['journalctl', '-u', service_name, '-n', str(lines), '--no-pager', '--no-hostname'],
+                            capture_output=True,
+                            text=True,
+                            timeout=5
+                        )
+                        used_service = service_name
+                        break
+                except FileNotFoundError:
+                    logs = "⚠️ journalctl command not found. Cannot retrieve systemd logs.\n\n"
+                    logs += f"Try accessing logs manually: sudo journalctl -u bolna-backend -f"
+                    break
+                except (subprocess.TimeoutExpired, PermissionError) as e:
+                    continue
+            
+            if result and result.returncode == 0 and result.stdout:
+                logs = f"📋 Logs from service: {used_service}\n"
+                logs += "=" * 80 + "\n\n"
+                logs += result.stdout
+            elif not logs:
+                logs = "⚠️ Could not retrieve logs from systemd.\n\n"
+                logs += f"Tried services: {', '.join(service_names)}\n"
+                logs += f"Try accessing logs manually: sudo journalctl -u bolna-backend -f"
+                
+        except Exception as e:
+            logs = f"⚠️ Error retrieving systemd logs: {str(e)}\n\n"
+            logs += f"Try accessing logs manually: sudo journalctl -u bolna-backend -f"
         
         # Return as HTML for easy viewing in browser
         html_content = f"""
