@@ -43,7 +43,7 @@ pip install -r requirements.txt
 3. Add your API key to the `.env` file:
    ```env
    BOLNA_API_KEY=your_actual_api_key_here
-   API_BASE_NAME=bn-2e2bd14b4f0449358d8e8c2b0ebe556a
+   API_BASE_NAME=(Your api key of bolna ai)
    API_KEY_NAME=sienna-edward-2072
    ```
 
