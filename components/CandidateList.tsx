@@ -93,12 +93,20 @@ export default function CandidateList({
 
     try {
       const backendUrl = getFlaskBackendUrl()
+      console.log(`[Individual Reset] Calling: ${backendUrl}/api/candidate/${candidateId}/reset`)
+      
       const response = await fetch(`${backendUrl}/api/candidate/${candidateId}/reset`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
       })
+
+      if (!response.ok) {
+        const errorText = await response.text()
+        console.error(`[Individual Reset] HTTP ${response.status}:`, errorText)
+        throw new Error(`HTTP ${response.status}: ${errorText || 'Server error'}`)
+      }
 
       const data = await response.json()
       console.log('[Individual Reset] Response:', data)
@@ -117,7 +125,9 @@ export default function CandidateList({
       }
     } catch (error) {
       console.error('Error resetting candidate:', error)
-      alert('Failed to reset candidate. Please try again.')
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+      console.error('Full error details:', { error, backendUrl })
+      alert(`Failed to reset candidate: ${errorMessage}. Check console for details.`)
     }
   }
 

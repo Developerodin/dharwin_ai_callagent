@@ -1890,11 +1890,17 @@ def add_candidate():
 def update_rescheduling_slots(candidate_id):
     """Update rescheduling slots for a candidate"""
     try:
-        json_path = 'data/candidates.json'
+        candidate_id_int = int(candidate_id)
+        # Use absolute path (same as reset endpoint)
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        json_path = os.path.join(base_dir, 'data', 'candidates.json')
+        
+        print(f"📝 Update rescheduling slots for candidate {candidate_id_int} - Using path: {json_path}")
+        
         with open(json_path, 'r', encoding='utf-8') as f:
             data = json.load(f)
         
-        candidate = next((c for c in data['candidates'] if c['id'] == int(candidate_id)), None)
+        candidate = next((c for c in data['candidates'] if c['id'] == candidate_id_int), None)
         if not candidate:
             return jsonify({
                 'success': False,
@@ -1914,8 +1920,16 @@ def update_rescheduling_slots(candidate_id):
         
         candidate['reschedulingSlots'] = slot_ids
         
-        with open(json_path, 'w', encoding='utf-8') as f:
-            json.dump(data, f, indent=2, ensure_ascii=False)
+        # Write back to file with error handling
+        try:
+            with open(json_path, 'w', encoding='utf-8') as f:
+                json.dump(data, f, indent=2, ensure_ascii=False)
+        except Exception as write_error:
+            print(f"❌ Error writing file: {write_error}")
+            return jsonify({
+                'success': False,
+                'error': f'Error writing file: {str(write_error)}'
+            }), 500
         
         print(f"✅ Updated rescheduling slots for candidate {candidate_id}: {slot_ids}")
         return jsonify({

@@ -8,23 +8,17 @@
       "position": "Software Engineer",
       "status": "pending",
       "scheduledInterview": {
-        "day": "Tuesday",
-        "date": "Tuesday, the 16th of December",
-        "time": "02:00 P.M.",
-        "datetime": "Tuesday, the 16th of December at 02:00 P.M."
+        "day": "Friday",
+        "date": "Friday, the 12th of December",
+        "time": "11:00 A.M.",
+        "datetime": "Friday, the 12th of December at 11:00 A.M."
       },
       "reschedulingSlots": [
         1,
         3,
         5
       ],
-      "applicationDate": "2024-11-25",
-      "originalInterview": {
-        "day": "Friday",
-        "date": "Friday, the 12th of December",
-        "time": "11:00 A.M.",
-        "datetime": "Friday, the 12th of December at 11:00 A.M."
-      }
+      "applicationDate": "2024-11-25"
     },
     {
       "id": 2,

@@ -51,6 +51,9 @@ export default function ManageReschedulingSlotsModal({
     setSaving(true)
     try {
       const backendUrl = getFlaskBackendUrl()
+      console.log(`[Update Slots] Calling: ${backendUrl}/api/candidate/${candidateId}/rescheduling-slots`)
+      console.log(`[Update Slots] Payload:`, { reschedulingSlots: selectedSlots })
+      
       const response = await fetch(`${backendUrl}/api/candidate/${candidateId}/rescheduling-slots`, {
         method: 'PUT',
         headers: {
@@ -61,7 +64,14 @@ export default function ManageReschedulingSlotsModal({
         }),
       })
 
+      if (!response.ok) {
+        const errorText = await response.text()
+        console.error(`[Update Slots] HTTP ${response.status}:`, errorText)
+        throw new Error(`HTTP ${response.status}: ${errorText || 'Server error'}`)
+      }
+
       const data = await response.json()
+      console.log('[Update Slots] Response:', data)
       
       if (data.success) {
         alert('Rescheduling slots updated successfully!')
@@ -72,7 +82,9 @@ export default function ManageReschedulingSlotsModal({
       }
     } catch (error) {
       console.error('Error updating rescheduling slots:', error)
-      alert('Failed to update rescheduling slots. Please try again.')
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+      console.error('Full error details:', { error, backendUrl, candidateId, selectedSlots })
+      alert(`Failed to update rescheduling slots: ${errorMessage}. Check console for details.`)
     } finally {
       setSaving(false)
     }
