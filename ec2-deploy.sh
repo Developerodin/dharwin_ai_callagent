@@ -111,6 +111,31 @@ Type=simple
 User=$SERVICE_USER
 WorkingDirectory=$PROJECT_DIR
 Environment="PORT=3000"
+Environment="HOSTNAME=0.0.0.0"
+Environment="NODE_ENV=production"
+Environment="NEXT_PUBLIC_FLASK_BACKEND_URL=${FLASK_BACKEND_URL}"
+ExecStart=/usr/bin/npm start
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+# Also create bolna-frontend.service (for compatibility)
+sudo tee /etc/systemd/system/bolna-frontend.service > /dev/null << EOF
+[Unit]
+Description=Bolna Next.js Frontend
+After=network.target bolna-flask.service
+
+[Service]
+Type=simple
+User=$SERVICE_USER
+WorkingDirectory=$PROJECT_DIR
+Environment="PORT=3000"
+Environment="HOSTNAME=0.0.0.0"
 Environment="NODE_ENV=production"
 Environment="NEXT_PUBLIC_FLASK_BACKEND_URL=${FLASK_BACKEND_URL}"
 ExecStart=/usr/bin/npm start
