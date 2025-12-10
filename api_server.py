@@ -1014,8 +1014,25 @@ def get_candidates():
         # Normalize to absolute path
         json_path = os.path.abspath(json_path)
         
-        # Log file path for debugging (only in debug mode to avoid log spam)
-        # print(f"📖 Reading candidates from: {json_path}")
+        # Ensure file exists
+        if not os.path.exists(json_path):
+            print(f"❌ Candidates file not found at: {json_path}")
+            # Try alternative locations
+            alt_paths = [
+                'data/candidates.json',
+                os.path.join(os.getcwd(), 'data', 'candidates.json')
+            ]
+            for alt_path in alt_paths:
+                if os.path.exists(alt_path):
+                    json_path = os.path.abspath(alt_path)
+                    print(f"✅ Found candidates file at alternative location: {json_path}")
+                    break
+            else:
+                raise FileNotFoundError(f"Candidates file not found at any location")
+        
+        # Check file modification time
+        file_mtime = os.path.getmtime(json_path)
+        mtime_str = datetime.fromtimestamp(file_mtime).strftime('%Y-%m-%d %H:%M:%S')
         
         with open(json_path, 'r', encoding='utf-8') as f:
             data = json.load(f)
@@ -1025,9 +1042,20 @@ def get_candidates():
         for candidate in data.get('candidates', []):
             status = candidate.get('status', 'unknown')
             status_counts[status] = status_counts.get(status, 0) + 1
+        
+        # Log file path, modification time, and status breakdown
+        print(f"📖 Reading candidates from: {json_path}")
+        print(f"   File last modified: {mtime_str}")
         print(f"📊 Serving candidates - Status breakdown: {status_counts}")
         
-        return jsonify(data)
+        response = jsonify(data)
+        # Add aggressive cache-busting headers
+        response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate, private'
+        response.headers['Pragma'] = 'no-cache'
+        response.headers['Expires'] = '0'
+        response.headers['Last-Modified'] = datetime.now().strftime('%a, %d %b %Y %H:%M:%S GMT')
+        response.headers['ETag'] = f'"{hash(json.dumps(data, sort_keys=True))}"'
+        return response
     except Exception as e:
         import traceback
         print(f"❌ Error reading candidates: {e}")
