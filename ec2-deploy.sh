@@ -190,14 +190,51 @@ else
     echo "   $NGROK_URL/api/webhook"
 fi
 
+# Setup nginx reverse proxy (optional but recommended)
+echo ""
+echo "🔧 Setting up nginx reverse proxy..."
+if command -v nginx &> /dev/null; then
+    # Copy nginx config
+    if [ -f "$PROJECT_DIR/nginx/bolna-agent.conf" ]; then
+        sudo cp "$PROJECT_DIR/nginx/bolna-agent.conf" /etc/nginx/sites-available/bolna-agent
+        sudo ln -sf /etc/nginx/sites-available/bolna-agent /etc/nginx/sites-enabled/
+        
+        # Remove default nginx site if it exists
+        sudo rm -f /etc/nginx/sites-enabled/default
+        
+        # Test nginx configuration
+        sudo nginx -t
+        
+        if [ $? -eq 0 ]; then
+            sudo systemctl restart nginx
+            sudo systemctl enable nginx
+            echo "✅ nginx reverse proxy configured and started"
+            echo "   Access your app at: http://${EC2_PUBLIC_IP}"
+            echo "   Health check: http://${EC2_PUBLIC_IP}/api/health"
+        else
+            echo "⚠️  nginx configuration test failed. Check manually: sudo nginx -t"
+        fi
+    else
+        echo "⚠️  nginx config file not found. Skipping nginx setup."
+    fi
+else
+    echo "⚠️  nginx not installed. Install with: sudo apt install nginx"
+fi
+
 echo ""
 echo "✅ Deployment Complete!"
+echo ""
+echo "Access your application:"
+echo "  Frontend: http://${EC2_PUBLIC_IP} (or http://${EC2_PUBLIC_IP}:3000 if nginx not used)"
+echo "  Backend API: http://${EC2_PUBLIC_IP}/api (or http://${EC2_PUBLIC_IP}:5000/api if nginx not used)"
+echo "  Health Check: http://${EC2_PUBLIC_IP}/api/health"
 echo ""
 echo "Useful commands:"
 echo "  View Flask logs:    sudo journalctl -u bolna-flask -f"
 echo "  View Next.js logs:  sudo journalctl -u bolna-nextjs -f"
 echo "  View ngrok logs:    sudo journalctl -u bolna-ngrok -f"
-echo "  Restart all:        sudo systemctl restart bolna-flask bolna-nextjs bolna-ngrok"
-echo "  Stop all:           sudo systemctl stop bolna-flask bolna-nextjs bolna-ngrok"
+echo "  View nginx logs:    sudo tail -f /var/log/nginx/error.log"
+echo "  Restart all:        sudo systemctl restart bolna-flask bolna-nextjs bolna-ngrok nginx"
+echo "  Stop all:           sudo systemctl stop bolna-flask bolna-nextjs bolna-ngrok nginx"
 echo ""
 
