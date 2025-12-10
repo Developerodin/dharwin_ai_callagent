@@ -1745,6 +1745,22 @@ def reset_candidate_status(candidate_id):
         
         print(f"📝 Reset candidate {candidate_id} - Using path: {json_path}")
         
+        # Check if file exists
+        if not os.path.exists(json_path):
+            print(f"⚠️  Candidates file not found: {json_path}")
+            return jsonify({
+                'success': False,
+                'error': f'Candidates file not found: {json_path}'
+            }), 404
+        
+        # Check file permissions
+        if not os.access(json_path, os.W_OK):
+            print(f"⚠️  No write permission for file: {json_path}")
+            return jsonify({
+                'success': False,
+                'error': f'No write permission for file: {json_path}. Please check file permissions on EC2.'
+            }), 403
+        
         with open(json_path, 'r', encoding='utf-8') as f:
             data = json.load(f)
         
@@ -1778,8 +1794,18 @@ def reset_candidate_status(candidate_id):
             if had_original:
                 message += ' and original interview restored'
             print(f"✅ {message}")
+        except PermissionError as pe:
+            print(f"❌ Permission error writing file: {pe}")
+            import traceback
+            traceback.print_exc()
+            return jsonify({
+                'success': False,
+                'error': f'Permission denied writing to file. Check file permissions on EC2: {str(pe)}'
+            }), 403
         except Exception as write_error:
             print(f"❌ Error writing file: {write_error}")
+            import traceback
+            traceback.print_exc()
             return jsonify({
                 'success': False,
                 'error': f'Error writing file: {str(write_error)}'
@@ -1807,6 +1833,24 @@ def delete_candidate(candidate_id):
         base_dir = os.path.dirname(os.path.abspath(__file__))
         json_path = os.path.join(base_dir, 'data', 'candidates.json')
         
+        print(f"📝 Delete candidate {candidate_id_int} - Using path: {json_path}")
+        
+        # Check if file exists
+        if not os.path.exists(json_path):
+            print(f"⚠️  Candidates file not found: {json_path}")
+            return jsonify({
+                'success': False,
+                'error': f'Candidates file not found: {json_path}'
+            }), 404
+        
+        # Check file permissions
+        if not os.access(json_path, os.W_OK):
+            print(f"⚠️  No write permission for file: {json_path}")
+            return jsonify({
+                'success': False,
+                'error': f'No write permission for file: {json_path}. Please check file permissions on EC2.'
+            }), 403
+        
         with open(json_path, 'r', encoding='utf-8') as f:
             data = json.load(f)
         
@@ -1821,8 +1865,26 @@ def delete_candidate(candidate_id):
         # Remove candidate from list
         data['candidates'] = [c for c in data['candidates'] if c['id'] != candidate_id_int]
         
-        with open(json_path, 'w', encoding='utf-8') as f:
-            json.dump(data, f, indent=2, ensure_ascii=False)
+        # Write back to file with error handling
+        try:
+            with open(json_path, 'w', encoding='utf-8') as f:
+                json.dump(data, f, indent=2, ensure_ascii=False)
+        except PermissionError as pe:
+            print(f"❌ Permission error writing file: {pe}")
+            import traceback
+            traceback.print_exc()
+            return jsonify({
+                'success': False,
+                'error': f'Permission denied writing to file. Check file permissions on EC2: {str(pe)}'
+            }), 403
+        except Exception as write_error:
+            print(f"❌ Error writing file: {write_error}")
+            import traceback
+            traceback.print_exc()
+            return jsonify({
+                'success': False,
+                'error': f'Error writing file: {str(write_error)}'
+            }), 500
         
         print(f"🗑️  Deleted candidate {candidate_id} ({candidate_name})")
         return jsonify({
@@ -1908,6 +1970,22 @@ def update_rescheduling_slots(candidate_id):
         
         print(f"📝 Update rescheduling slots for candidate {candidate_id_int} - Using path: {json_path}")
         
+        # Check if file exists
+        if not os.path.exists(json_path):
+            print(f"⚠️  Candidates file not found: {json_path}")
+            return jsonify({
+                'success': False,
+                'error': f'Candidates file not found: {json_path}'
+            }), 404
+        
+        # Check file permissions
+        if not os.access(json_path, os.W_OK):
+            print(f"⚠️  No write permission for file: {json_path}")
+            return jsonify({
+                'success': False,
+                'error': f'No write permission for file: {json_path}. Please check file permissions on EC2.'
+            }), 403
+        
         with open(json_path, 'r', encoding='utf-8') as f:
             data = json.load(f)
         
@@ -1935,8 +2013,18 @@ def update_rescheduling_slots(candidate_id):
         try:
             with open(json_path, 'w', encoding='utf-8') as f:
                 json.dump(data, f, indent=2, ensure_ascii=False)
+        except PermissionError as pe:
+            print(f"❌ Permission error writing file: {pe}")
+            import traceback
+            traceback.print_exc()
+            return jsonify({
+                'success': False,
+                'error': f'Permission denied writing to file. Check file permissions on EC2: {str(pe)}'
+            }), 403
         except Exception as write_error:
             print(f"❌ Error writing file: {write_error}")
+            import traceback
+            traceback.print_exc()
             return jsonify({
                 'success': False,
                 'error': f'Error writing file: {str(write_error)}'
