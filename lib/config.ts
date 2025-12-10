@@ -38,9 +38,16 @@ export const getFlaskBackendUrlServer = (request?: Request): string => {
  * Get Flask backend URL for client-side use (browser)
  */
 export const getFlaskBackendUrl = (): string => {
-  // In browser/client-side - MUST check runtime hostname FIRST (before env var)
+  // In browser/client-side
   if (typeof window !== 'undefined') {
-    // Auto-detect FIRST (before env var) - this works at runtime
+    // 1. Check environment variable FIRST (explicit configuration takes priority)
+    const envUrl = process.env.NEXT_PUBLIC_FLASK_BACKEND_URL
+    if (envUrl) {
+      console.log(`[Config] Using NEXT_PUBLIC_FLASK_BACKEND_URL: ${envUrl}`)
+      return envUrl
+    }
+    
+    // 2. Auto-detect from current hostname (works at runtime)
     const hostname = window.location.hostname
     const protocol = window.location.protocol === 'https:' ? 'https:' : 'http:'
     
@@ -52,14 +59,7 @@ export const getFlaskBackendUrl = (): string => {
       return backendUrl
     }
     
-    // Try environment variable (set at build time) - only use if hostname is localhost
-    const envUrl = process.env.NEXT_PUBLIC_FLASK_BACKEND_URL
-    if (envUrl) {
-      console.log(`[Config] Using NEXT_PUBLIC_FLASK_BACKEND_URL: ${envUrl}`)
-      return envUrl
-    }
-    
-    // Fallback to localhost for local development
+    // 3. Fallback to localhost for local development
     console.log(`[Config] Falling back to localhost:5000`)
     return 'http://localhost:5000'
   }

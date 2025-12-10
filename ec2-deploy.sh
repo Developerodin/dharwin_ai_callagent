@@ -37,21 +37,7 @@ pip install -r requirements.txt
 echo "✅ Python dependencies installed"
 
 # Install Node.js dependencies
-echo "📦 Installing Node.js dependencies..."
-npm install
-npm run build
-echo "✅ Node.js dependencies installed and built"
-
-# Update Flask server for production (bind to 0.0.0.0)
-echo "🔧 Configuring Flask server for production..."
-if grep -q "app.run(debug=True, port=5000)" api_server.py; then
-    sed -i "s/app.run(debug=True, port=5000)/app.run(debug=False, host='0.0.0.0', port=5000)/" api_server.py
-    echo "✅ Flask server configured for production"
-elif ! grep -q "host='0.0.0.0'" api_server.py; then
-    echo "⚠️  Could not find Flask run configuration. Please manually update api_server.py"
-fi
-
-# Get EC2 public IP for Flask backend URL
+# Get EC2 public IP for Flask backend URL FIRST (before building)
 EC2_PUBLIC_IP=$(curl -s http://169.254.169.254/latest/meta-data/public-ipv4 2>/dev/null || echo "localhost")
 FLASK_BACKEND_URL="http://${EC2_PUBLIC_IP}:5000"
 
@@ -59,7 +45,7 @@ echo ""
 echo "📝 Setting Flask backend URL for Next.js: ${FLASK_BACKEND_URL}"
 echo ""
 
-# Create/update .env.local for Next.js
+# Create/update .env.local for Next.js BEFORE building (Next.js needs NEXT_PUBLIC_ vars at build time)
 if [ -f .env.local ]; then
     # Update existing NEXT_PUBLIC_FLASK_BACKEND_URL or add it
     if grep -q "NEXT_PUBLIC_FLASK_BACKEND_URL" .env.local; then
@@ -72,6 +58,23 @@ else
 fi
 
 echo "✅ Next.js environment configured"
+
+echo "📦 Installing Node.js dependencies..."
+npm install
+
+# Build Next.js with environment variables (NEXT_PUBLIC_ vars must be available at build time)
+echo "🏗️  Building Next.js application..."
+npm run build
+echo "✅ Node.js dependencies installed and built"
+
+# Update Flask server for production (bind to 0.0.0.0)
+echo "🔧 Configuring Flask server for production..."
+if grep -q "app.run(debug=True, port=5000)" api_server.py; then
+    sed -i "s/app.run(debug=True, port=5000)/app.run(debug=False, host='0.0.0.0', port=5000)/" api_server.py
+    echo "✅ Flask server configured for production"
+elif ! grep -q "host='0.0.0.0'" api_server.py; then
+    echo "⚠️  Could not find Flask run configuration. Please manually update api_server.py"
+fi
 
 # Create systemd service files
 echo "⚙️  Creating systemd service files..."
