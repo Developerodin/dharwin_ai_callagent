@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import fs from 'fs'
 import path from 'path'
+import { getFlaskBackendUrlServer } from '@/lib/config'
 
 export async function POST(request: Request) {
   try {
@@ -55,8 +56,10 @@ export async function POST(request: Request) {
     }
 
     // Call Flask backend to make actual Bolna AI call
+    // Use config helper to get backend URL (checks env vars and auto-detects from request)
     let executionId: string
-    const flaskBackendUrl = process.env.NEXT_PUBLIC_FLASK_BACKEND_URL || 'http://localhost:5000'
+    const flaskBackendUrl = getFlaskBackendUrlServer(request)
+    console.log(`[API /api/call] Using Flask backend: ${flaskBackendUrl}`)
     
     try {
       // Call Flask backend which connects to Bolna AI
