@@ -213,11 +213,11 @@ This starts a server on `http://localhost:5000` that bridges the Next.js fronten
 The Flask server includes a webhook endpoint (`/api/webhook`) that receives real-time call execution data from Bolna AI and automatically updates candidate statuses. This eliminates the need for polling and provides instant updates.
 
 **Setup Instructions:**
-1. Configure your webhook URL in the Bolna AI dashboard (see [WEBHOOK_SETUP.md](WEBHOOK_SETUP.md))
+1. Configure your webhook URL in the Bolna AI dashboard (e.g., `https://your-domain.com/api/webhook`)
 2. The webhook endpoint validates requests from Bolna AI's authorized IP addresses
 3. Candidate statuses are updated automatically when calls complete
 
-For detailed webhook setup instructions, see [WEBHOOK_SETUP.md](WEBHOOK_SETUP.md).
+**Note:** Make sure to expose your Flask server using a tool like ngrok or deploy it to a public server for webhooks to work.
 
 ## Support
 
@@ -227,5 +227,58 @@ For issues or questions, refer to the Bolna AI platform documentation.
 
 ## Quick Start
 
-See [QUICKSTART.md](QUICKSTART.md) for a complete step-by-step setup guide.
+### Using Startup Scripts (Recommended)
+
+The easiest way to start the project is using the provided startup scripts:
+
+#### First-Time Setup
+
+**Windows:**
+```powershell
+.\start.ps1
+```
+
+**Linux/Mac:**
+```bash
+chmod +x start.sh
+./start.sh
+```
+
+The first-time setup script will:
+- ✅ Check for Python and Node.js installations
+- ✅ Create and activate Python virtual environment
+- ✅ Install Python dependencies (if needed)
+- ✅ Install Node.js dependencies (if needed)
+- ✅ Start Flask API server on http://localhost:5000
+- ✅ Start Next.js frontend on http://localhost:3000
+
+#### Development Mode (with ngrok)
+
+After initial setup, use the development script for daily development:
+
+**Windows:**
+```powershell
+.\start-dev.ps1
+```
+
+**Linux/Mac:**
+```bash
+chmod +x start-dev.sh
+./start-dev.sh
+```
+
+The development script will:
+- ✅ Activate Python virtual environment
+- ✅ Start ngrok tunnel (for webhook support)
+- ✅ Start Flask API server on http://localhost:5000
+- ✅ Start Next.js frontend on http://localhost:3000
+- ✅ Display webhook URL for Bolna AI configuration
+
+**Note:** Make sure ngrok is installed before using `start-dev.ps1`. Download from [ngrok.com](https://ngrok.com/download).
+
+### Manual Setup (Individual Commands)
+
+If you prefer to start each component manually in separate terminals, see [START_COMMANDS.md](START_COMMANDS.md) for step-by-step instructions with individual commands.
+
+For complete setup instructions, see [QUICKSTART.md](QUICKSTART.md).
 
