@@ -91,8 +91,8 @@ export default function CandidateList({
       return
     }
 
+    const backendUrl = getFlaskBackendUrl()
     try {
-      const backendUrl = getFlaskBackendUrl()
       console.log(`[Individual Reset] Calling: ${backendUrl}/api/candidate/${candidateId}/reset`)
       
       const response = await fetch(`${backendUrl}/api/candidate/${candidateId}/reset`, {

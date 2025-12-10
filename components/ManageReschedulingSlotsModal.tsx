@@ -49,8 +49,8 @@ export default function ManageReschedulingSlotsModal({
 
   const handleSave = async () => {
     setSaving(true)
+    const backendUrl = getFlaskBackendUrl()
     try {
-      const backendUrl = getFlaskBackendUrl()
       console.log(`[Update Slots] Calling: ${backendUrl}/api/candidate/${candidateId}/rescheduling-slots`)
       console.log(`[Update Slots] Payload:`, { reschedulingSlots: selectedSlots })
       
