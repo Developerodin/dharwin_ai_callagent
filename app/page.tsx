@@ -19,15 +19,31 @@ export default function Home() {
 
   const fetchCandidates = async () => {
     try {
-      // Add timestamp to force fresh fetch (cache busting)
+      const backendUrl = getFlaskBackendUrl()
+      
+      // Read directly from Flask backend to ensure we get the latest data
+      // This avoids any caching or path mismatch issues
       const timestamp = new Date().getTime()
-      const response = await fetch(`/api/candidates?t=${timestamp}`, {
+      const response = await fetch(`${backendUrl}/api/candidates?t=${timestamp}`, {
         cache: 'no-store',
         headers: {
           'Cache-Control': 'no-cache, no-store, must-revalidate',
           'Pragma': 'no-cache',
         }
       })
+      
+      if (!response.ok) {
+        // Fallback to Next.js API route if Flask is unavailable
+        console.warn('Flask backend unavailable, using Next.js API route')
+        const fallbackResponse = await fetch(`/api/candidates?t=${timestamp}`, {
+          cache: 'no-store',
+        })
+        const fallbackData = await fallbackResponse.json()
+        setCandidates(fallbackData.candidates || [])
+        setAvailableSlots(fallbackData.availableSlots || [])
+        return
+      }
+      
       const data = await response.json()
       
       // Log status distribution for debugging
@@ -36,13 +52,22 @@ export default function Home() {
         return acc;
       }, {});
       
-      console.log(`✅ Fetched ${data.candidates?.length || 0} candidates at ${new Date().toLocaleTimeString()}`)
+      console.log(`✅ Fetched ${data.candidates?.length || 0} candidates from Flask at ${new Date().toLocaleTimeString()}`)
       console.log(`   Status breakdown:`, statusCounts)
       
       setCandidates(data.candidates || [])
       setAvailableSlots(data.availableSlots || [])
     } catch (error) {
       console.error('Error fetching candidates:', error)
+      // Fallback to Next.js API route on error
+      try {
+        const fallbackResponse = await fetch('/api/candidates')
+        const fallbackData = await fallbackResponse.json()
+        setCandidates(fallbackData.candidates || [])
+        setAvailableSlots(fallbackData.availableSlots || [])
+      } catch (fallbackError) {
+        console.error('Fallback also failed:', fallbackError)
+      }
     } finally {
       setLoading(false)
     }
