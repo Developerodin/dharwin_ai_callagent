@@ -494,34 +494,77 @@ def get_candidates():
 def reset_candidate_statuses():
     """Reset ALL candidate statuses to 'pending'"""
     try:
-        json_path = 'data/candidates.json'
+        # Use absolute path to ensure we're writing to the correct location
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        json_path = os.path.join(base_dir, 'data', 'candidates.json')
+        
+        print(f"📝 Reset statuses - Using path: {json_path}")
+        
         if not os.path.exists(json_path):
             print(f"⚠️  Candidates file not found: {json_path}")
             return jsonify({
                 'success': False,
-                'error': 'Candidates file not found'
+                'error': f'Candidates file not found: {json_path}'
             }), 404
+        
+        # Check file permissions
+        if not os.access(json_path, os.W_OK):
+            print(f"⚠️  No write permission for file: {json_path}")
+            return jsonify({
+                'success': False,
+                'error': f'No write permission for file: {json_path}'
+            }), 403
             
+        # Read current data
         with open(json_path, 'r', encoding='utf-8') as f:
             data = json.load(f)
         
         # Reset ALL statuses to 'pending' (not just 'calling')
         reset_count = 0
+        changes = []
         for candidate in data['candidates']:
             old_status = candidate.get('status', 'unknown')
             if old_status != 'pending':
                 candidate['status'] = 'pending'
                 reset_count += 1
+                changes.append(f"{candidate.get('name', 'Unknown')}: {old_status} → pending")
                 print(f"  ✅ Reset candidate {candidate['id']} ({candidate.get('name', 'Unknown')}): {old_status} → pending")
         
-        with open(json_path, 'w', encoding='utf-8') as f:
-            json.dump(data, f, indent=2, ensure_ascii=False)
+        # Write back to file
+        try:
+            with open(json_path, 'w', encoding='utf-8') as f:
+                json.dump(data, f, indent=2, ensure_ascii=False)
+            print(f"✅ Successfully wrote {reset_count} changes to {json_path}")
+        except PermissionError as pe:
+            print(f"❌ Permission error writing file: {pe}")
+            return jsonify({
+                'success': False,
+                'error': f'Permission denied writing to file: {str(pe)}'
+            }), 403
+        except Exception as write_error:
+            print(f"❌ Error writing file: {write_error}")
+            import traceback
+            traceback.print_exc()
+            return jsonify({
+                'success': False,
+                'error': f'Error writing file: {str(write_error)}'
+            }), 500
+        
+        # Verify the file was written correctly
+        try:
+            with open(json_path, 'r', encoding='utf-8') as f:
+                verify_data = json.load(f)
+            verify_pending = sum(1 for c in verify_data.get('candidates', []) if c.get('status') == 'pending')
+            print(f"✅ Verified: {verify_pending} candidates now have 'pending' status")
+        except Exception as verify_error:
+            print(f"⚠️  Could not verify file write: {verify_error}")
         
         print(f"✅ Reset {reset_count} candidate statuses to pending")
         return jsonify({
             'success': True,
             'message': f'Reset {reset_count} candidate statuses to pending',
-            'reset_count': reset_count
+            'reset_count': reset_count,
+            'changes': changes
         })
     except Exception as e:
         print(f"❌ Error resetting statuses: {e}")
