@@ -24,6 +24,9 @@ export async function POST(request: Request) {
     // Get available slots for rescheduling (use candidate-specific slots if assigned)
     let alternativeSlots: string[] = []
     
+    // Get current interview datetime for filtering
+    const currentInterviewDatetime = candidate.scheduledInterview?.datetime || null
+    
     if (candidate.reschedulingSlots && candidate.reschedulingSlots.length > 0) {
       // Use candidate-specific rescheduling slots
       const slotIds = candidate.reschedulingSlots as number[]
@@ -33,15 +36,19 @@ export async function POST(request: Request) {
       
       alternativeSlots = slotIds
         .filter((slotId: number) => {
-          const slot = slotMap.get(slotId)
-          return slot && slot.datetime !== candidate.scheduledInterview.datetime
+          const slot = slotMap.get(slotId) as any
+          return slot && slot.datetime && (!currentInterviewDatetime || slot.datetime !== currentInterviewDatetime)
         })
-        .map((slotId: number) => slotMap.get(slotId).datetime)
+        .map((slotId: number) => {
+          const slot = slotMap.get(slotId) as any
+          return slot?.datetime as string | undefined
+        })
+        .filter((datetime: string | undefined): datetime is string => !!datetime)
     } else {
       // Fallback: Use all available slots (excluding current)
       alternativeSlots = data.availableSlots
         .filter((slot: any) => 
-          slot.datetime !== candidate.scheduledInterview.datetime
+          !currentInterviewDatetime || slot.datetime !== currentInterviewDatetime
         )
         .slice(0, 3) // Limit to 3 alternative slots
         .map((slot: any) => slot.datetime)
