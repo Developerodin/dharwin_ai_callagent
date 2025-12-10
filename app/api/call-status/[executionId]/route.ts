@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { getFlaskBackendUrlServer } from '@/lib/config'
 
 export async function GET(
   request: Request,
@@ -8,7 +9,9 @@ export async function GET(
     const { executionId } = params
 
     // Call Flask backend to get execution details from Bolna AI
-    const flaskBackendUrl = process.env.NEXT_PUBLIC_FLASK_BACKEND_URL || 'http://localhost:5000'
+    // Use config helper to get backend URL (checks env vars and auto-detects from request)
+    const flaskBackendUrl = getFlaskBackendUrlServer(request)
+    console.log(`[API /api/call-status] Using Flask backend: ${flaskBackendUrl}`)
     
     try {
       const flaskResponse = await fetch(`${flaskBackendUrl}/api/call-status/${executionId}`, {

@@ -4,6 +4,39 @@
  * Automatically detects EC2/public IP when running on remote server
  */
 
+/**
+ * Get Flask backend URL for server-side use (Next.js API routes, SSR)
+ * @param request Optional Request object to extract hostname from headers
+ */
+export const getFlaskBackendUrlServer = (request?: Request): string => {
+  // 1. Check environment variables first
+  const envUrl = process.env.FLASK_BACKEND_URL || process.env.NEXT_PUBLIC_FLASK_BACKEND_URL
+  if (envUrl) {
+    console.log(`[Config] Server-side using env var: ${envUrl}`)
+    return envUrl
+  }
+  
+  // 2. Try to infer from request headers (for server-side API routes)
+  if (request) {
+    const hostHeader = request.headers.get('host') || request.headers.get('x-forwarded-host')
+    if (hostHeader) {
+      const hostname = hostHeader.split(':')[0] // Remove port if present
+      if (hostname && hostname !== 'localhost' && hostname !== '127.0.0.1' && !hostname.includes('localhost')) {
+        const backendUrl = `http://${hostname}:5000`
+        console.log(`[Config] Server-side auto-detected from headers: ${backendUrl}`)
+        return backendUrl
+      }
+    }
+  }
+  
+  // 3. Fallback to localhost for local development
+  console.log(`[Config] Server-side falling back to localhost:5000`)
+  return 'http://localhost:5000'
+}
+
+/**
+ * Get Flask backend URL for client-side use (browser)
+ */
 export const getFlaskBackendUrl = (): string => {
   // In browser/client-side - MUST check runtime hostname FIRST (before env var)
   if (typeof window !== 'undefined') {
@@ -31,14 +64,8 @@ export const getFlaskBackendUrl = (): string => {
     return 'http://localhost:5000'
   }
   
-  // Server-side (SSR): use environment variable or fallback
-  const serverEnvUrl = process.env.FLASK_BACKEND_URL || process.env.NEXT_PUBLIC_FLASK_BACKEND_URL
-  if (serverEnvUrl) {
-    console.log(`[Config] Server-side using env var: ${serverEnvUrl}`)
-    return serverEnvUrl
-  }
-  console.log(`[Config] Server-side falling back to localhost:5000`)
-  return 'http://localhost:5000'
+  // Server-side (SSR): use server helper function
+  return getFlaskBackendUrlServer()
 }
 
 export const FLASK_BACKEND_URL = getFlaskBackendUrl()
