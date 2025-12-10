@@ -475,6 +475,65 @@ def validate_bolna_ip(func):
 # API Routes
 # ============================================================================
 
+@app.route('/api/health', methods=['GET'])
+@app.route('/health', methods=['GET'])
+def health_check():
+    """Health check endpoint to verify Flask backend is running"""
+    try:
+        # Check if candidates file exists and is readable
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        json_path = os.path.join(base_dir, 'data', 'candidates.json')
+        
+        health_status = {
+            'status': 'healthy',
+            'service': 'Bolna Calling Agent API',
+            'timestamp': datetime.now().isoformat(),
+            'version': '1.0.0',
+            'checks': {
+                'api_server': True,
+                'bolna_agent': agent is not None,
+                'candidates_file': os.path.exists(json_path),
+                'candidates_file_readable': os.access(json_path, os.R_OK) if os.path.exists(json_path) else False,
+                'candidates_file_writable': os.access(json_path, os.W_OK) if os.path.exists(json_path) else False
+            }
+        }
+        
+        # Try to read candidates file to verify it's valid JSON
+        if os.path.exists(json_path):
+            try:
+                with open(json_path, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+                    health_status['checks']['candidates_count'] = len(data.get('candidates', []))
+                    health_status['checks']['available_slots_count'] = len(data.get('availableSlots', []))
+            except Exception as e:
+                health_status['checks']['candidates_file_valid'] = False
+                health_status['checks']['candidates_file_error'] = str(e)
+        
+        # Determine overall health status
+        all_checks_pass = (
+            health_status['checks']['api_server'] and
+            health_status['checks']['candidates_file'] and
+            health_status['checks']['candidates_file_readable']
+        )
+        
+        if not all_checks_pass:
+            health_status['status'] = 'degraded'
+        
+        status_code = 200 if health_status['status'] == 'healthy' else 503
+        
+        return jsonify(health_status), status_code
+        
+    except Exception as e:
+        import traceback
+        print(f"❌ Health check error: {e}")
+        traceback.print_exc()
+        return jsonify({
+            'status': 'unhealthy',
+            'service': 'Bolna Calling Agent API',
+            'timestamp': datetime.now().isoformat(),
+            'error': str(e)
+        }), 500
+
 @app.route('/api/candidates', methods=['GET'])
 def get_candidates():
     """Get all candidates"""
