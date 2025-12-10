@@ -104,7 +104,16 @@ export default function CandidateList({
       
       if (data.success) {
         alert('Candidate status reset to pending!')
-        onStatusUpdate()
+        
+        // Wait a bit to ensure Flask has written the file, then refresh
+        setTimeout(() => {
+          onStatusUpdate()
+        }, 500);
+        
+        // Also refresh after a longer delay as backup
+        setTimeout(() => {
+          onStatusUpdate()
+        }, 1500);
       } else {
         alert(`Error: ${data.error || 'Failed to reset candidate'}`)
       }

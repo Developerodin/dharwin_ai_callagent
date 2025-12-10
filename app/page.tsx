@@ -19,10 +19,18 @@ export default function Home() {
 
   const fetchCandidates = async () => {
     try {
-      const response = await fetch('/api/candidates')
+      // Add timestamp to force fresh fetch (cache busting)
+      const timestamp = new Date().getTime()
+      const response = await fetch(`/api/candidates?t=${timestamp}`, {
+        cache: 'no-store',
+        headers: {
+          'Cache-Control': 'no-cache',
+        }
+      })
       const data = await response.json()
       setCandidates(data.candidates || [])
       setAvailableSlots(data.availableSlots || [])
+      console.log(`✅ Fetched ${data.candidates?.length || 0} candidates at ${new Date().toLocaleTimeString()}`)
     } catch (error) {
       console.error('Error fetching candidates:', error)
     } finally {
@@ -59,8 +67,18 @@ export default function Home() {
       
       const result = await response.json();
       if (result.success) {
-        alert('All statuses reset to pending!');
-        fetchCandidates(); // Refresh the candidate list
+        alert(`All statuses reset to pending! (${result.reset_count || 0} candidates updated)`);
+        
+        // Wait a bit to ensure Flask has written the file, then refresh
+        setTimeout(() => {
+          // Add timestamp to force fresh fetch (cache busting)
+          fetchCandidates();
+        }, 500);
+        
+        // Also refresh after a longer delay as backup
+        setTimeout(() => {
+          fetchCandidates();
+        }, 1500);
       } else {
         alert('Error: ' + result.error);
       }
