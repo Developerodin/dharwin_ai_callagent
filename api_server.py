@@ -1043,10 +1043,12 @@ def get_candidates():
             status = candidate.get('status', 'unknown')
             status_counts[status] = status_counts.get(status, 0) + 1
         
-        # Log file path, modification time, and status breakdown
-        print(f"📖 Reading candidates from: {json_path}")
+        # Log file path, modification time, and status breakdown  
+        # This helps debug if read/write operations are using different files
+        print(f"📖 [GET /api/candidates] Reading from: {json_path}")
         print(f"   File last modified: {mtime_str}")
-        print(f"📊 Serving candidates - Status breakdown: {status_counts}")
+        print(f"📊 Status breakdown: {status_counts}")
+        print(f"   Total candidates: {len(data.get('candidates', []))}")
         
         response = jsonify(data)
         # Add aggressive cache-busting headers

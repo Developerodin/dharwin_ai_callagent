@@ -280,7 +280,6 @@ def update_candidate_in_json(candidate_id: int, status: str, updated_interview: 
         json_path = os.path.abspath(json_path)
         
         print(f"📁 Updating candidate status - Using path: {json_path}")
-        print(f"   Candidate ID: {candidate_id}, Status: {old_status} → {status}")
         
         with open(json_path, 'r', encoding='utf-8') as f:
             data = json.load(f)
@@ -293,6 +292,7 @@ def update_candidate_in_json(candidate_id: int, status: str, updated_interview: 
             candidate['status'] = status
             
             print(f"📝 Updating candidate {candidate_id}: {old_status} → {status}")
+            print(f"   File path: {json_path}")
             
             # Update interview details if rescheduled
             if status == 'rescheduled' and updated_interview:
