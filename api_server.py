@@ -6,9 +6,10 @@ Bridges Next.js frontend with Bolna AI Python backend
 import os
 import json
 from datetime import datetime
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, Response
 from flask_cors import CORS
 import requests
+import subprocess
 from bolna_agent import BolnaAgent
 from update_candidate_status import update_candidate_in_json, parse_call_outcome
 from config import BOLNA_API_KEY, AGENT_ID
@@ -474,6 +475,152 @@ def validate_bolna_ip(func):
 # ============================================================================
 # API Routes
 # ============================================================================
+
+@app.route('/api/', methods=['GET'])
+@app.route('/api/logs', methods=['GET'])
+def show_logs():
+    """Display recent Flask backend logs"""
+    try:
+        # Get number of lines from query parameter (default 100)
+        lines = request.args.get('lines', 100, type=int)
+        lines = min(lines, 1000)  # Limit to 1000 lines max
+        
+        # Try to get logs from systemd journal
+        try:
+            # Run journalctl to get Flask service logs
+            result = subprocess.run(
+                ['journalctl', '-u', 'bolna-flask', '-n', str(lines), '--no-pager', '--no-hostname'],
+                capture_output=True,
+                text=True,
+                timeout=5
+            )
+            
+            if result.returncode == 0 and result.stdout:
+                logs = result.stdout
+            else:
+                logs = "⚠️ Could not retrieve logs from systemd. Service may not be running as a systemd service.\n\n"
+                logs += "Recent application activity will be shown here once available."
+        except (subprocess.TimeoutExpired, FileNotFoundError, PermissionError) as e:
+            logs = f"⚠️ Could not retrieve systemd logs: {str(e)}\n\n"
+            logs += "Try accessing logs via: sudo journalctl -u bolna-flask -f"
+        
+        # Return as HTML for easy viewing in browser
+        html_content = f"""
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Backend Logs - Bolna Calling Agent</title>
+    <style>
+        body {{
+            font-family: 'Courier New', monospace;
+            background: #1e1e1e;
+            color: #d4d4d4;
+            margin: 0;
+            padding: 20px;
+        }}
+        h1 {{
+            color: #4ec9b0;
+            border-bottom: 2px solid #4ec9b0;
+            padding-bottom: 10px;
+        }}
+        .info {{
+            background: #252526;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+            border-left: 4px solid #007acc;
+        }}
+        .logs {{
+            background: #252526;
+            padding: 15px;
+            border-radius: 5px;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            max-height: 80vh;
+            overflow-y: auto;
+            font-size: 13px;
+            line-height: 1.5;
+        }}
+        .refresh-btn {{
+            background: #007acc;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 10px 5px;
+            font-size: 14px;
+        }}
+        .refresh-btn:hover {{
+            background: #005a9e;
+        }}
+        .endpoint-links {{
+            margin: 15px 0;
+        }}
+        .endpoint-links a {{
+            color: #4ec9b0;
+            text-decoration: none;
+            margin-right: 20px;
+        }}
+        .endpoint-links a:hover {{
+            text-decoration: underline;
+        }}
+    </style>
+    <meta http-equiv="refresh" content="30">
+</head>
+<body>
+    <h1>📋 Backend Logs</h1>
+    
+    <div class="info">
+        <strong>Service:</strong> Bolna Flask API Server<br>
+        <strong>Showing last {lines} lines</strong><br>
+        <strong>Auto-refresh:</strong> Every 30 seconds
+    </div>
+    
+    <button class="refresh-btn" onclick="location.reload()">🔄 Refresh Now</button>
+    <a href="/api/health" class="refresh-btn" style="display: inline-block; text-decoration: none;">🏥 Health Check</a>
+    
+    <div class="endpoint-links">
+        <a href="/api/health">/api/health</a> - Health check endpoint<br>
+        <a href="/api/candidates">/api/candidates</a> - Get candidates<br>
+        <a href="/api/logs?lines=50">Last 50 lines</a> | 
+        <a href="/api/logs?lines=100">Last 100 lines</a> | 
+        <a href="/api/logs?lines=500">Last 500 lines</a>
+    </div>
+    
+    <div class="logs">{logs}</div>
+    
+    <script>
+        // Auto-scroll to bottom
+        window.onload = function() {{
+            const logsDiv = document.querySelector('.logs');
+            logsDiv.scrollTop = logsDiv.scrollHeight;
+        }};
+    </script>
+</body>
+</html>
+        """
+        
+        return Response(html_content, mimetype='text/html')
+        
+    except Exception as e:
+        error_html = f"""
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Error - Backend Logs</title>
+    <style>
+        body {{ font-family: Arial, sans-serif; padding: 20px; }}
+        .error {{ background: #fee; color: #c00; padding: 15px; border-radius: 5px; }}
+    </style>
+</head>
+<body>
+    <h1>Error</h1>
+    <div class="error">Could not retrieve logs: {str(e)}</div>
+</body>
+</html>
+        """
+        return Response(error_html, mimetype='text/html'), 500
 
 @app.route('/api/health', methods=['GET'])
 @app.route('/health', methods=['GET'])
