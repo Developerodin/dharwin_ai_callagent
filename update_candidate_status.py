@@ -263,14 +263,24 @@ def update_candidate_in_json(candidate_id: int, status: str, updated_interview: 
     """
     try:
         import os
-        # Try to find the JSON file
-        json_path = 'data/candidates.json'
-        if not os.path.exists(json_path):
-            # Try from current working directory
-            current_dir = os.getcwd()
-            json_path = os.path.join(current_dir, 'data', 'candidates.json')
+        # Use absolute path to ensure we're always using the same file
+        # Get the directory where this script is located
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        json_path = os.path.join(script_dir, 'data', 'candidates.json')
         
-        print(f"📁 Reading JSON from: {json_path}")
+        # Fallback to relative path if absolute doesn't exist
+        if not os.path.exists(json_path):
+            json_path = 'data/candidates.json'
+            if not os.path.exists(json_path):
+                # Try from current working directory
+                current_dir = os.getcwd()
+                json_path = os.path.join(current_dir, 'data', 'candidates.json')
+        
+        # Normalize the path to ensure consistency
+        json_path = os.path.abspath(json_path)
+        
+        print(f"📁 Updating candidate status - Using path: {json_path}")
+        print(f"   Candidate ID: {candidate_id}, Status: {old_status} → {status}")
         
         with open(json_path, 'r', encoding='utf-8') as f:
             data = json.load(f)
@@ -301,13 +311,30 @@ def update_candidate_in_json(candidate_id: int, status: str, updated_interview: 
                 }
                 print(f"📅 Updated interview: {old_interview['datetime']} → {candidate['scheduledInterview']['datetime']}")
             
-            # Write back to file
-            with open(json_path, 'w', encoding='utf-8') as f:
-                json.dump(data, f, indent=2, ensure_ascii=False)
-            
-            print(f"✅ Successfully updated candidate {candidate_id} in {json_path}")
-            print(f"   Status: {old_status} → {status}")
-            return True
+            # Write back to file with proper error handling
+            try:
+                with open(json_path, 'w', encoding='utf-8') as f:
+                    json.dump(data, f, indent=2, ensure_ascii=False)
+                
+                # Verify write was successful
+                with open(json_path, 'r', encoding='utf-8') as f:
+                    verify_data = json.load(f)
+                    verify_candidate = next((c for c in verify_data.get('candidates', []) if c['id'] == candidate_id), None)
+                    if verify_candidate and verify_candidate.get('status') == status:
+                        print(f"✅ Successfully updated candidate {candidate_id} in {json_path}")
+                        print(f"   Status: {old_status} → {status}")
+                        return True
+                    else:
+                        print(f"⚠️  Status update verification failed. Expected {status}, got {verify_candidate.get('status') if verify_candidate else 'candidate not found'}")
+                        return False
+            except PermissionError as pe:
+                print(f"❌ Permission error writing to {json_path}: {pe}")
+                return False
+            except Exception as write_error:
+                print(f"❌ Error writing to {json_path}: {write_error}")
+                import traceback
+                traceback.print_exc()
+                return False
         else:
             print(f"❌ Candidate {candidate_id} not found in candidates.json")
             print(f"   Available IDs: {[c['id'] for c in data['candidates']]}")

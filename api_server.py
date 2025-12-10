@@ -957,11 +957,35 @@ def generate_check_items(checks):
 def get_candidates():
     """Get all candidates"""
     try:
-        json_path = 'data/candidates.json'
+        # Use absolute path to ensure consistency with update operations
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        json_path = os.path.join(base_dir, 'data', 'candidates.json')
+        
+        # Fallback to relative if absolute doesn't exist
+        if not os.path.exists(json_path):
+            json_path = 'data/candidates.json'
+        
+        # Normalize to absolute path
+        json_path = os.path.abspath(json_path)
+        
+        # Log file path for debugging (only in debug mode to avoid log spam)
+        # print(f"📖 Reading candidates from: {json_path}")
+        
         with open(json_path, 'r', encoding='utf-8') as f:
             data = json.load(f)
+        
+        # Log current status counts for debugging
+        status_counts = {}
+        for candidate in data.get('candidates', []):
+            status = candidate.get('status', 'unknown')
+            status_counts[status] = status_counts.get(status, 0) + 1
+        print(f"📊 Serving candidates - Status breakdown: {status_counts}")
+        
         return jsonify(data)
     except Exception as e:
+        import traceback
+        print(f"❌ Error reading candidates: {e}")
+        traceback.print_exc()
         return jsonify({
             'error': str(e),
             'candidates': [],
@@ -1174,6 +1198,12 @@ def make_call():
         # Save execution_id to candidate_id mapping for webhook processing
         if execution_id and candidate_id:
             save_execution_mapping(execution_id, candidate_id, phone)
+            # Update candidate status to "calling" immediately
+            try:
+                update_candidate_in_json(candidate_id, 'calling')
+                print(f"✅ Updated candidate {candidate_id} status to 'calling'")
+            except Exception as status_error:
+                print(f"⚠️  Error updating candidate status to 'calling': {status_error}")
         
         return jsonify({
             'success': True,

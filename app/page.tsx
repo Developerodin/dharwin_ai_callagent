@@ -135,10 +135,11 @@ export default function Home() {
   }
   
   // Auto-refresh candidates periodically to catch status updates
+  // More frequent polling to catch status changes faster
   useEffect(() => {
     const interval = setInterval(() => {
       fetchCandidates()
-    }, 5000) // Refresh every 5 seconds
+    }, 3000) // Refresh every 3 seconds (increased frequency for faster status updates)
     return () => clearInterval(interval)
   }, [])
 
