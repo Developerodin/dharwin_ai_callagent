@@ -668,18 +668,263 @@ def health_check():
         
         status_code = 200 if health_status['status'] == 'healthy' else 503
         
+        # Check if request wants HTML (browser) or JSON (API)
+        accept_header = request.headers.get('Accept', '')
+        wants_html = 'text/html' in accept_header or 'html' in accept_header.lower()
+        
+        # If no Accept header or browser-like, return HTML
+        if not accept_header or wants_html or request.headers.get('User-Agent', '').startswith(('Mozilla', 'Chrome', 'Safari', 'Firefox', 'Edge')):
+            return generate_health_html(health_status, status_code), status_code
+        
+        # Otherwise return JSON for API clients
         return jsonify(health_status), status_code
         
     except Exception as e:
         import traceback
         print(f"❌ Health check error: {e}")
         traceback.print_exc()
-        return jsonify({
+        error_response = {
             'status': 'unhealthy',
             'service': 'Bolna Calling Agent API',
             'timestamp': datetime.now().isoformat(),
             'error': str(e)
-        }), 500
+        }
+        
+        # Return HTML error page if browser
+        accept_header = request.headers.get('Accept', '')
+        if 'text/html' in accept_header or not accept_header:
+            return generate_health_html(error_response, 500), 500
+        
+        return jsonify(error_response), 500
+
+def generate_health_html(health_data, status_code):
+    """Generate HTML page for health check"""
+    status = health_data.get('status', 'unknown')
+    status_color = {
+        'healthy': '#4caf50',
+        'degraded': '#ff9800',
+        'unhealthy': '#f44336'
+    }.get(status, '#757575')
+    
+    status_icon = {
+        'healthy': '✅',
+        'degraded': '⚠️',
+        'unhealthy': '❌'
+    }.get(status, '❓')
+    
+    checks = health_data.get('checks', {})
+    
+    html = f"""
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Health Check - Bolna Calling Agent</title>
+    <meta http-equiv="refresh" content="30">
+    <style>
+        * {{
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }}
+        body {{
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }}
+        .container {{
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            overflow: hidden;
+        }}
+        .header {{
+            background: {status_color};
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }}
+        .header h1 {{
+            font-size: 2em;
+            margin-bottom: 10px;
+        }}
+        .status-badge {{
+            display: inline-block;
+            background: rgba(255,255,255,0.2);
+            padding: 8px 20px;
+            border-radius: 20px;
+            font-size: 1.1em;
+            margin-top: 10px;
+        }}
+        .content {{
+            padding: 30px;
+        }}
+        .info-grid {{
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }}
+        .info-card {{
+            background: #f5f5f5;
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+        }}
+        .info-card .label {{
+            color: #666;
+            font-size: 0.9em;
+            margin-bottom: 8px;
+        }}
+        .info-card .value {{
+            font-size: 1.8em;
+            font-weight: bold;
+            color: #333;
+        }}
+        .checks-section {{
+            margin-top: 30px;
+        }}
+        .checks-section h2 {{
+            color: #333;
+            margin-bottom: 15px;
+            border-bottom: 2px solid #eee;
+            padding-bottom: 10px;
+        }}
+        .check-item {{
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px;
+            margin-bottom: 10px;
+            background: #f9f9f9;
+            border-radius: 8px;
+            border-left: 4px solid #ddd;
+        }}
+        .check-item.pass {{
+            border-left-color: #4caf50;
+            background: #f1f8f4;
+        }}
+        .check-item.fail {{
+            border-left-color: #f44336;
+            background: #fff5f5;
+        }}
+        .check-item .label {{
+            font-weight: 500;
+            color: #333;
+        }}
+        .check-item .status {{
+            font-size: 1.2em;
+        }}
+        .timestamp {{
+            text-align: center;
+            color: #999;
+            margin-top: 20px;
+            font-size: 0.9em;
+        }}
+        .actions {{
+            text-align: center;
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 1px solid #eee;
+        }}
+        .btn {{
+            display: inline-block;
+            padding: 12px 24px;
+            margin: 5px;
+            background: #667eea;
+            color: white;
+            text-decoration: none;
+            border-radius: 8px;
+            transition: background 0.3s;
+        }}
+        .btn:hover {{
+            background: #5568d3;
+        }}
+        .btn-secondary {{
+            background: #764ba2;
+        }}
+        .btn-secondary:hover {{
+            background: #5d3d7a;
+        }}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>{status_icon} {health_data.get('service', 'Bolna Calling Agent API')}</h1>
+            <div class="status-badge">
+                Status: <strong>{status.upper()}</strong>
+            </div>
+        </div>
+        
+        <div class="content">
+            <div class="info-grid">
+                <div class="info-card">
+                    <div class="label">Version</div>
+                    <div class="value">{health_data.get('version', '1.0.0')}</div>
+                </div>
+                <div class="info-card">
+                    <div class="label">Candidates</div>
+                    <div class="value">{checks.get('candidates_count', 0)}</div>
+                </div>
+                <div class="info-card">
+                    <div class="label">Available Slots</div>
+                    <div class="value">{checks.get('available_slots_count', 0)}</div>
+                </div>
+            </div>
+            
+            <div class="checks-section">
+                <h2>System Checks</h2>
+                {generate_check_items(checks)}
+            </div>
+            
+            <div class="timestamp">
+                Last checked: {health_data.get('timestamp', 'Unknown')}<br>
+                Auto-refresh: Every 30 seconds
+            </div>
+            
+            <div class="actions">
+                <a href="/api/health" class="btn">🔄 Refresh</a>
+                <a href="/api/" class="btn btn-secondary">📋 View Logs</a>
+                <a href="/api/candidates" class="btn btn-secondary">👥 Candidates</a>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
+    """
+    return html
+
+def generate_check_items(checks):
+    """Generate HTML for check items"""
+    items = []
+    check_labels = {
+        'api_server': 'API Server',
+        'bolna_agent': 'Bolna AI Agent',
+        'candidates_file': 'Candidates File',
+        'candidates_file_readable': 'File Readable',
+        'candidates_file_writable': 'File Writable',
+        'candidates_file_valid': 'File Valid JSON',
+    }
+    
+    for key, value in checks.items():
+        if key in ['candidates_count', 'available_slots_count']:
+            continue
+        
+        label = check_labels.get(key, key.replace('_', ' ').title())
+        status_class = 'pass' if value else 'fail'
+        status_icon = '✅' if value else '❌'
+        
+        items.append(f"""
+                <div class="check-item {status_class}">
+                    <span class="label">{label}</span>
+                    <span class="status">{status_icon}</span>
+                </div>
+        """)
+    
+    return ''.join(items)
 
 @app.route('/api/candidates', methods=['GET'])
 def get_candidates():
