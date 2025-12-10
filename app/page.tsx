@@ -24,13 +24,23 @@ export default function Home() {
       const response = await fetch(`/api/candidates?t=${timestamp}`, {
         cache: 'no-store',
         headers: {
-          'Cache-Control': 'no-cache',
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache',
         }
       })
       const data = await response.json()
+      
+      // Log status distribution for debugging
+      const statusCounts = (data.candidates || []).reduce((acc: any, c: any) => {
+        acc[c.status] = (acc[c.status] || 0) + 1;
+        return acc;
+      }, {});
+      
+      console.log(`✅ Fetched ${data.candidates?.length || 0} candidates at ${new Date().toLocaleTimeString()}`)
+      console.log(`   Status breakdown:`, statusCounts)
+      
       setCandidates(data.candidates || [])
       setAvailableSlots(data.availableSlots || [])
-      console.log(`✅ Fetched ${data.candidates?.length || 0} candidates at ${new Date().toLocaleTimeString()}`)
     } catch (error) {
       console.error('Error fetching candidates:', error)
     } finally {
@@ -58,31 +68,43 @@ export default function Home() {
   const resetStatuses = async () => {
     try {
       const backendUrl = getFlaskBackendUrl()
+      console.log(`[Reset] Calling reset endpoint: ${backendUrl}/api/reset-statuses`)
+      
       const response = await fetch(`${backendUrl}/api/reset-statuses`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
+        cache: 'no-store',
       });
       
       const result = await response.json();
+      console.log('[Reset] Response:', result)
+      
       if (result.success) {
         alert(`All statuses reset to pending! (${result.reset_count || 0} candidates updated)`);
         
-        // Wait a bit to ensure Flask has written the file, then refresh
-        setTimeout(() => {
-          // Add timestamp to force fresh fetch (cache busting)
-          fetchCandidates();
-        }, 500);
+        // Force multiple refreshes with increasing delays to ensure UI updates
+        const refreshMultipleTimes = () => {
+          fetchCandidates(); // Immediate
+          setTimeout(() => fetchCandidates(), 300);  // 300ms
+          setTimeout(() => fetchCandidates(), 800);  // 800ms
+          setTimeout(() => fetchCandidates(), 1500); // 1.5s
+          setTimeout(() => fetchCandidates(), 2500); // 2.5s
+        };
         
-        // Also refresh after a longer delay as backup
+        refreshMultipleTimes();
+        
+        // Also try reloading the page as last resort if still not updated
         setTimeout(() => {
+          console.log('[Reset] Final refresh check...');
           fetchCandidates();
-        }, 1500);
+        }, 3000);
       } else {
         alert('Error: ' + result.error);
       }
     } catch (error) {
+      console.error('[Reset] Error:', error);
       alert('Failed to reset statuses: ' + error);
     }
   }

@@ -101,19 +101,17 @@ export default function CandidateList({
       })
 
       const data = await response.json()
+      console.log('[Individual Reset] Response:', data)
       
       if (data.success) {
         alert('Candidate status reset to pending!')
         
-        // Wait a bit to ensure Flask has written the file, then refresh
-        setTimeout(() => {
-          onStatusUpdate()
-        }, 500);
-        
-        // Also refresh after a longer delay as backup
-        setTimeout(() => {
-          onStatusUpdate()
-        }, 1500);
+        // Force multiple refreshes with increasing delays
+        onStatusUpdate(); // Immediate
+        setTimeout(() => onStatusUpdate(), 300);  // 300ms
+        setTimeout(() => onStatusUpdate(), 800);  // 800ms
+        setTimeout(() => onStatusUpdate(), 1500); // 1.5s
+        setTimeout(() => onStatusUpdate(), 2500); // 2.5s
       } else {
         alert(`Error: ${data.error || 'Failed to reset candidate'}`)
       }
