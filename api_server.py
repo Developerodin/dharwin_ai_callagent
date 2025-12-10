@@ -1175,8 +1175,14 @@ def make_call():
         interview_date = data.get('interviewDate')
         interview_time = data.get('interviewTime')
 
-        # Read available slots from JSON
-        with open('data/candidates.json', 'r', encoding='utf-8') as f:
+        # Read available slots from JSON using absolute path
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        json_path = os.path.join(base_dir, 'data', 'candidates.json')
+        if not os.path.exists(json_path):
+            json_path = 'data/candidates.json'
+        json_path = os.path.abspath(json_path)
+        
+        with open(json_path, 'r', encoding='utf-8') as f:
             candidates_data = json.load(f)
         
         # Get candidate data and position
